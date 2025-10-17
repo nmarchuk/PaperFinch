@@ -77,6 +77,18 @@ public partial class MainWindow : Window
                 return file?.Path.LocalPath;
             };
 
+            // Attach PromptForTextAction for theme naming
+            vm.PromptForTextAction = async (title, message) =>
+            {
+                var dialog = new TextInputDialog
+                {
+                    Title = title,
+                    Message = message
+                };
+
+                return await dialog.ShowDialog<string?>(this);
+            };
+
             // Optional: Auto-generate on startup
             vm.GeneratePdfCommand.Execute(null);
         }

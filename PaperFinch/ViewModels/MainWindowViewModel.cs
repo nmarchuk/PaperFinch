@@ -9,11 +9,14 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using PaperFinch.Models;
+using PaperFinch.Services;
 
 namespace PaperFinch.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
+    private readonly ThemeService _themeService;
+
     private string _title = "Sample Document";
     private string _content = "This is a sample PDF document generated with QuestPDF.";
     private string _pageInfo = "No PDF loaded";
@@ -23,6 +26,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private double _marginSize = 1.0;
     private TrimSizeItem _selectedTrimSize;
     private byte[]? _currentPdfBytes;
+    private PdfTheme? _selectedTheme;
+    private List<PdfTheme> _themes = new();
 
     public string Title
     {
@@ -90,16 +95,37 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _selectedTrimSize, value);
     }
 
+    public PdfTheme? SelectedTheme
+    {
+        get => _selectedTheme;
+        set
+        {
+            if (SetProperty(ref _selectedTheme, value) && value != null)
+            {
+                ApplyTheme(value);
+                SaveThemeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public List<PdfTheme> Themes
+    {
+        get => _themes;
+        set => SetProperty(ref _themes, value);
+    }
+
     public List<TrimSizeItem> TrimSizes { get; }
 
     // Delegate for the View to inject the PDF loader
     public Action<byte[]>? LoadPdfAction { get; set; }
     public Action<int>? RenderPageAction { get; set; }
     public Func<string, Task<string?>>? SaveFileDialogAction { get; set; }
+    public Func<string, string, Task<string?>>? PromptForTextAction { get; set; }
 
     public MainWindowViewModel()
     {
         QuestPDF.Settings.License = LicenseType.Community;
+        _themeService = new ThemeService();
 
         // Populate trim sizes from enum
         TrimSizes = Enum.GetValues<TrimSize>()
@@ -108,6 +134,33 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Set default selection
         _selectedTrimSize = TrimSizes.First(ts => ts.Size == TrimSize.Standard_6x9);
+
+        // Load themes asynchronously
+        _ = LoadThemesAsync();
+    }
+
+    private async Task LoadThemesAsync()
+    {
+        Themes = await _themeService.LoadAllThemesAsync();
+        SelectedTheme = Themes.FirstOrDefault();
+    }
+
+    private void ApplyTheme(PdfTheme theme)
+    {
+        FontSize = theme.FontSize;
+        MarginSize = theme.MarginSize;
+        SelectedTrimSize = TrimSizes.First(ts => ts.Size == theme.TrimSize);
+    }
+
+    private PdfTheme CreateThemeFromCurrentSettings(string name)
+    {
+        return new PdfTheme
+        {
+            Name = name,
+            FontSize = FontSize,
+            MarginSize = MarginSize,
+            TrimSize = SelectedTrimSize.Size
+        };
     }
 
     [RelayCommand]
@@ -137,6 +190,94 @@ public partial class MainWindowViewModel : ViewModelBase
             PageInfo = $"Error: {ex.Message}";
         }
     }
+
+    [RelayCommand(CanExecute = nameof(CanSaveTheme))]
+    private async Task SaveTheme()
+    {
+        if (SelectedTheme == null || SelectedTheme.Name == "Default")
+            return;
+
+        try
+        {
+            var updatedTheme = CreateThemeFromCurrentSettings(SelectedTheme.Name);
+            await _themeService.SaveThemeAsync(updatedTheme);
+
+            // Update the theme in the list
+            var index = Themes.FindIndex(t => t.Name == SelectedTheme.Name);
+            if (index >= 0)
+            {
+                Themes[index] = updatedTheme;
+                SelectedTheme = updatedTheme;
+            }
+
+            PageInfo = $"Theme '{SelectedTheme.Name}' saved";
+        }
+        catch (Exception ex)
+        {
+            PageInfo = $"Error saving theme: {ex.Message}";
+        }
+    }
+
+    private bool CanSaveTheme() => SelectedTheme != null && SelectedTheme.Name != "Default";
+
+    [RelayCommand]
+    private async Task SaveAsNewTheme()
+    {
+        if (PromptForTextAction == null)
+            return;
+
+        try
+        {
+            var themeName = await PromptForTextAction.Invoke("Save As New Theme", "Enter theme name:");
+
+            if (string.IsNullOrWhiteSpace(themeName))
+                return;
+
+            if (await _themeService.ThemeExistsAsync(themeName))
+            {
+                PageInfo = $"Theme '{themeName}' already exists";
+                return;
+            }
+
+            var newTheme = CreateThemeFromCurrentSettings(themeName);
+            await _themeService.SaveThemeAsync(newTheme);
+
+            // Reload themes and select the new one
+            Themes = await _themeService.LoadAllThemesAsync();
+            SelectedTheme = Themes.FirstOrDefault(t => t.Name == themeName);
+
+            PageInfo = $"Theme '{themeName}' created";
+        }
+        catch (Exception ex)
+        {
+            PageInfo = $"Error creating theme: {ex.Message}";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteTheme))]
+    private async Task DeleteTheme()
+    {
+        if (SelectedTheme == null || SelectedTheme.Name == "Default")
+            return;
+
+        try
+        {
+            var themeName = SelectedTheme.Name;
+            await _themeService.DeleteThemeAsync(themeName);
+
+            // Reload themes and select default
+            Themes = await _themeService.LoadAllThemesAsync();
+            SelectedTheme = Themes.FirstOrDefault();
+
+            PageInfo = $"Theme '{themeName}' deleted";
+        }
+        catch (Exception ex)
+        {
+            PageInfo = $"Error deleting theme: {ex.Message}";
+        }
+    }
+
+    private bool CanDeleteTheme() => SelectedTheme != null && SelectedTheme.Name != "Default";
 
     [RelayCommand(CanExecute = nameof(CanExportPdf))]
     private async Task ExportPdf()

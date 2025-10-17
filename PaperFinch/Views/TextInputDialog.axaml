@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PaperFinch.Views.TextInputDialog"
+        Title="Input"
+        Width="400"
+        Height="150"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <StackPanel Margin="20" Spacing="15">
+        <TextBlock x:Name="MessageTextBlock" 
+                   Text="Enter value:" 
+                   FontSize="14"/>
+        
+        <TextBox x:Name="InputTextBox"
+                 Watermark="Enter text..."/>
+        
+        <StackPanel Orientation="Horizontal" 
+                    HorizontalAlignment="Right" 
+                    Spacing="10">
+            <Button Content="OK" 
+                    Width="80" 
+                    Click="OkButton_Click"
+                    IsDefault="True"/>
+            <Button Content="Cancel" 
+                    Width="80" 
+                    Click="CancelButton_Click"
+                    IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
