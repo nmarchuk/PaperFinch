@@ -1,7 +1,5 @@
-﻿using Avalonia;
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using PdfiumViewer;
 using System;
 using System.IO;
@@ -43,8 +41,11 @@ namespace PaperFinch.Controls
         /// <summary>
         /// Render a specific page of the loaded PDF
         /// </summary>
-        private void RenderPage(int pageIndex, int dpi)
+        public void RenderPage(int pageIndex, int dpi = 150)
         {
+            if (_pdfData == null || _pdfData.Length == 0)
+                return;
+
             try
             {
                 using var stream = new MemoryStream(_pdfData);
@@ -84,11 +85,9 @@ namespace PaperFinch.Controls
         private Bitmap ConvertToAvaloniaBitmap(System.Drawing.Image drawingImage)
         {
             using var ms = new MemoryStream();
-
             // Save as PNG to memory stream
             drawingImage.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
             ms.Position = 0;
-
             // Load into Avalonia Bitmap
             return new Bitmap(ms);
         }
