@@ -1,7 +1,10 @@
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using PaperFinch.ViewModels;
 using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace PaperFinch.Views;
 
@@ -52,6 +55,26 @@ public partial class MainWindow : Window
                         vm.PageInfo = $"Error rendering page: {ex.Message}";
                     }
                 });
+            };
+
+            // Attach SaveFileDialogAction for exporting PDFs
+            vm.SaveFileDialogAction = async (defaultFileName) =>
+            {
+                var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+                {
+                    Title = "Save PDF File",
+                    SuggestedFileName = defaultFileName,
+                    DefaultExtension = "pdf",
+                    FileTypeChoices = new[]
+                    {
+                        new FilePickerFileType("PDF Document")
+                        {
+                            Patterns = new[] { "*.pdf" }
+                        }
+                    }
+                });
+
+                return file?.Path.LocalPath;
             };
 
             // Optional: Auto-generate on startup

@@ -81,6 +81,11 @@
                         Margin="0,15,0,0"
                         Command="{Binding GeneratePdfCommand}"/>
                 
+                <Button Content="Export PDF..."
+                        HorizontalAlignment="Stretch"
+                        Margin="0,5,0,0"
+                        Command="{Binding ExportPdfCommand}"/>
+                
                 <TextBlock Margin="0,10,0,0"
                            Text="{Binding PageInfo}"/>
             </StackPanel>

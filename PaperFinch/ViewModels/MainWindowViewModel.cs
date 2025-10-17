@@ -22,6 +22,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _fontSize = 12;
     private double _marginSize = 1.0;
     private TrimSizeItem _selectedTrimSize;
+    private byte[]? _currentPdfBytes;
 
     public string Title
     {
@@ -94,6 +95,7 @@ public partial class MainWindowViewModel : ViewModelBase
     // Delegate for the View to inject the PDF loader
     public Action<byte[]>? LoadPdfAction { get; set; }
     public Action<int>? RenderPageAction { get; set; }
+    public Func<string, Task<string?>>? SaveFileDialogAction { get; set; }
 
     public MainWindowViewModel()
     {
@@ -126,13 +128,40 @@ public partial class MainWindowViewModel : ViewModelBase
 
             // Invoke the view's loader
             LoadPdfAction.Invoke(pdfBytes);
+            _currentPdfBytes = pdfBytes;
             CurrentPage = 1;
+            ExportPdfCommand.NotifyCanExecuteChanged();
         }
         catch (Exception ex)
         {
             PageInfo = $"Error: {ex.Message}";
         }
     }
+
+    [RelayCommand(CanExecute = nameof(CanExportPdf))]
+    private async Task ExportPdf()
+    {
+        if (_currentPdfBytes == null || SaveFileDialogAction == null)
+            return;
+
+        try
+        {
+            string defaultFileName = string.IsNullOrWhiteSpace(Title) ? "document.pdf" : $"{Title}.pdf";
+            string? filePath = await SaveFileDialogAction.Invoke(defaultFileName);
+
+            if (!string.IsNullOrEmpty(filePath))
+            {
+                await File.WriteAllBytesAsync(filePath, _currentPdfBytes);
+                PageInfo = $"PDF exported to: {Path.GetFileName(filePath)}";
+            }
+        }
+        catch (Exception ex)
+        {
+            PageInfo = $"Export error: {ex.Message}";
+        }
+    }
+
+    private bool CanExportPdf() => _currentPdfBytes != null && _currentPdfBytes.Length > 0;
 
     [RelayCommand(CanExecute = nameof(CanGoToFirstPage))]
     private void GoToFirstPage()
