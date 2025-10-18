@@ -8,68 +8,60 @@
         x:Class="PaperFinch.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="PDF Generator with Live Preview"
-        Width="1100"
-        Height="800"
+        Width="1400"
+        Height="900"
         Icon="/Assets/avalonia-logo.ico">
+
     <Design.DataContext>
         <vm:MainWindowViewModel/>
     </Design.DataContext>
     
     <Grid ColumnDefinitions="600,*" RowDefinitions="*">
-        <!-- LEFT PANEL -->
-        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="10" Spacing="10">
-                <!-- Theme Selection -->
-                <TextBlock Text="Theme:" FontWeight="Bold" FontSize="14"/>
-                <ComboBox ItemsSource="{Binding Themes}"
-                          SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
-                          HorizontalAlignment="Stretch">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding Name}"/>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                
-                <StackPanel Orientation="Horizontal" Spacing="5">
-                    <Button Content="Save Theme"
-                            Command="{Binding SaveThemeCommand}"
-                            HorizontalAlignment="Stretch"
-                            Width="110"/>
-                    <Button Content="Save As New..."
-                            Command="{Binding SaveAsNewThemeCommand}"
-                            HorizontalAlignment="Stretch"
-                            Width="110"/>
-                    <Button Content="Delete"
-                            Command="{Binding DeleteThemeCommand}"
-                            HorizontalAlignment="Stretch"
-                            Width="110"/>
-                </StackPanel>
-                
-                <Separator Margin="0,10"/>
-                
-                <!-- Document Content -->
-                <TextBlock Text="Document Content" FontWeight="Bold" FontSize="14"/>
-                
-                <TextBlock Text="Chapter Title:"/>
-                <TextBox Text="{Binding Title, Mode=TwoWay}"/>
-                
-                <TextBlock Text="Chapter Subtitle:"/>
-                <TextBox Text="{Binding Subtitle, Mode=TwoWay}"/>
-                
-                <TextBlock Text="Content:"/>
-                <TextBox AcceptsReturn="True"
-                         TextWrapping="Wrap"
-                         Height="120"
-                         Text="{Binding Content, Mode=TwoWay}"/>
-                
-                <Separator Margin="0,10"/>
-                
-                <!-- Tabbed Settings -->
-                <TabControl Height="450">
-                    <!-- Page Settings Tab -->
-                    <TabItem Header="Page">
-                        <ScrollViewer>
+        <!-- LEFT COLUMN: settings + actions -->
+        <Grid Grid.Column="0" Margin="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0"
+                       Text="PaperFinch"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Left"
+                       Margin="10"/>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Theme:" FontWeight="Bold" FontSize="14"/>
+                    <ComboBox ItemsSource="{Binding Themes}"
+                              SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                              HorizontalAlignment="Stretch">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Button Content="Save Theme"
+                                Command="{Binding SaveThemeCommand}"
+                                Width="110"/>
+                        <Button Content="Save As New..."
+                                Command="{Binding SaveAsNewThemeCommand}"
+                                Width="110"/>
+                        <Button Content="Delete"
+                                Command="{Binding DeleteThemeCommand}"
+                                Width="110"/>
+                    </StackPanel>
+
+                    <Separator Margin="0,10"/>
+
+                    <TabControl>
+                        <TabItem Header="Page">
                             <StackPanel Margin="5" Spacing="8">
                                 <TextBlock Text="Trim Size:"/>
                                 <ComboBox ItemsSource="{Binding TrimSizes}"
@@ -81,180 +73,215 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                
+
                                 <TextBlock Text="Inside Margin (in):" Margin="0,8,0,0"/>
                                 <NumericUpDown Value="{Binding InsideMargin, Mode=TwoWay}"
                                                Minimum="0"
                                                Maximum="3"
                                                Increment="0.125"
-                                               FormatString="0.000"/>
-                                
+                                               FormatString="0.000"
+                                               HorizontalAlignment="Stretch"/>
+
                                 <TextBlock Text="Outside Margin (in):"/>
                                 <NumericUpDown Value="{Binding OutsideMargin, Mode=TwoWay}"
                                                Minimum="0"
                                                Maximum="3"
                                                Increment="0.125"
-                                               FormatString="0.000"/>
-                                
+                                               FormatString="0.000"
+                                               HorizontalAlignment="Stretch"/>
+
                                 <TextBlock Text="Top Margin (in):"/>
                                 <NumericUpDown Value="{Binding TopMargin, Mode=TwoWay}"
                                                Minimum="0"
                                                Maximum="3"
                                                Increment="0.125"
-                                               FormatString="0.000"/>
-                                
+                                               FormatString="0.000"
+                                               HorizontalAlignment="Stretch"/>
+
                                 <TextBlock Text="Bottom Margin (in):"/>
                                 <NumericUpDown Value="{Binding BottomMargin, Mode=TwoWay}"
                                                Minimum="0"
                                                Maximum="3"
                                                Increment="0.125"
-                                               FormatString="0.000"/>
+                                               FormatString="0.000"
+                                               HorizontalAlignment="Stretch"/>
                             </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-                    
-                    <!-- Body Text Tab -->
-                    <TabItem Header="Body Text">
-                        <ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="Body Text">
                             <StackPanel Margin="5" Spacing="8">
                                 <TextBlock Text="Font:"/>
                                 <ComboBox ItemsSource="{Binding AvailableFonts}"
                                           SelectedItem="{Binding BodyFont, Mode=TwoWay}"
                                           HorizontalAlignment="Stretch"/>
-                                
+
                                 <TextBlock Text="Font Size (pt):"/>
                                 <NumericUpDown Value="{Binding BodyFontSize, Mode=TwoWay}"
                                                Minimum="6"
                                                Maximum="72"
                                                Increment="1"
-                                               FormatString="0"/>
-                                
+                                               FormatString="0"
+                                               HorizontalAlignment="Stretch"/>
+
                                 <TextBlock Text="Line Spacing:"/>
                                 <NumericUpDown Value="{Binding LineSpacing, Mode=TwoWay}"
                                                Minimum="1.0"
                                                Maximum="3.0"
                                                Increment="0.1"
-                                               FormatString="0.0"/>
-                                
+                                               FormatString="0.0"
+                                               HorizontalAlignment="Stretch"/>
+
                                 <TextBlock Text="Paragraph Indent (in):"/>
                                 <NumericUpDown Value="{Binding ParagraphIndent, Mode=TwoWay}"
                                                Minimum="0"
                                                Maximum="1"
                                                Increment="0.05"
-                                               FormatString="0.00"/>
+                                               FormatString="0.00"
+                                               HorizontalAlignment="Stretch"/>
                             </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-                    
-                    <!-- Chapter Title Tab -->
-                    <TabItem Header="Chapter Title">
-                        <ScrollViewer>
-                            <StackPanel Margin="5" Spacing="8">
-                                <TextBlock Text="Font:"/>
-                                <ComboBox ItemsSource="{Binding AvailableFonts}"
-                                          SelectedItem="{Binding ChapterTitleFont, Mode=TwoWay}"
-                                          HorizontalAlignment="Stretch"/>
-                                
-                                <TextBlock Text="Font Size (pt):"/>
-                                <NumericUpDown Value="{Binding ChapterTitleFontSize, Mode=TwoWay}"
-                                               Minimum="6"
-                                               Maximum="72"
-                                               Increment="1"
-                                               FormatString="0"/>
-                                
-                                <CheckBox Content="Bold"
-                                          IsChecked="{Binding ChapterTitleBold, Mode=TwoWay}"/>
-                                
-                                <CheckBox Content="Italic"
-                                          IsChecked="{Binding ChapterTitleItalic, Mode=TwoWay}"/>
-                                
-                                <TextBlock Text="Alignment:"/>
-                                <ComboBox ItemsSource="{Binding TextAlignments}"
-                                          SelectedItem="{Binding ChapterTitleAlignment, Mode=TwoWay}"
-                                          HorizontalAlignment="Stretch"/>
+                        </TabItem>
+
+                        <TabItem Header="Titles">
+                            <StackPanel Margin="5" Spacing="12">
+                                <TextBlock Text="Chapter Title" FontWeight="Bold" FontSize="14"/>
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Font:"/>
+                                    <ComboBox ItemsSource="{Binding AvailableFonts}"
+                                              SelectedItem="{Binding ChapterTitleFont, Mode=TwoWay}"
+                                              HorizontalAlignment="Stretch"/>
+
+                                    <TextBlock Text="Font Size (pt):"/>
+                                    <NumericUpDown Value="{Binding ChapterTitleFontSize, Mode=TwoWay}"
+                                                   Minimum="6"
+                                                   Maximum="72"
+                                                   Increment="1"
+                                                   FormatString="0"
+                                                   HorizontalAlignment="Stretch"/>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <CheckBox Content="Bold"
+                                                  IsChecked="{Binding ChapterTitleBold, Mode=TwoWay}"/>
+                                        <CheckBox Content="Italic"
+                                                  IsChecked="{Binding ChapterTitleItalic, Mode=TwoWay}"/>
+                                        <TextBlock Text="Alignment:" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                        <ComboBox ItemsSource="{Binding TextAlignments}"
+                                                  SelectedItem="{Binding ChapterTitleAlignment, Mode=TwoWay}"
+                                                  HorizontalAlignment="Left"
+                                                  Width="100"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <Separator Margin="0,10"/>
+
+                                <TextBlock Text="Subtitle" FontWeight="Bold" FontSize="14"/>
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Font:"/>
+                                    <ComboBox ItemsSource="{Binding AvailableFonts}"
+                                              SelectedItem="{Binding ChapterSubtitleFont, Mode=TwoWay}"
+                                              HorizontalAlignment="Stretch"/>
+
+                                    <TextBlock Text="Font Size (pt):"/>
+                                    <NumericUpDown Value="{Binding ChapterSubtitleFontSize, Mode=TwoWay}"
+                                                   Minimum="6"
+                                                   Maximum="72"
+                                                   Increment="1"
+                                                   FormatString="0"
+                                                   HorizontalAlignment="Stretch"/>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <CheckBox Content="Bold"
+                                                  IsChecked="{Binding ChapterSubtitleBold, Mode=TwoWay}"/>
+                                        <CheckBox Content="Italic"
+                                                  IsChecked="{Binding ChapterSubtitleItalic, Mode=TwoWay}"/>
+                                        <TextBlock Text="Alignment:" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                        <ComboBox ItemsSource="{Binding TextAlignments}"
+                                                  SelectedItem="{Binding ChapterSubtitleAlignment, Mode=TwoWay}"
+                                                  HorizontalAlignment="Left"
+                                                  Width="100"/>
+                                    </StackPanel>
+                                </StackPanel>
                             </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-                    
-                    <!-- Chapter Subtitle Tab -->
-                    <TabItem Header="Subtitle">
-                        <ScrollViewer>
-                            <StackPanel Margin="5" Spacing="8">
-                                <TextBlock Text="Font:"/>
-                                <ComboBox ItemsSource="{Binding AvailableFonts}"
-                                          SelectedItem="{Binding ChapterSubtitleFont, Mode=TwoWay}"
-                                          HorizontalAlignment="Stretch"/>
-                                
-                                <TextBlock Text="Font Size (pt):"/>
-                                <NumericUpDown Value="{Binding ChapterSubtitleFontSize, Mode=TwoWay}"
-                                               Minimum="6"
-                                               Maximum="72"
-                                               Increment="1"
-                                               FormatString="0"/>
-                                
-                                <CheckBox Content="Bold"
-                                          IsChecked="{Binding ChapterSubtitleBold, Mode=TwoWay}"/>
-                                
-                                <CheckBox Content="Italic"
-                                          IsChecked="{Binding ChapterSubtitleItalic, Mode=TwoWay}"/>
-                                
-                                <TextBlock Text="Alignment:"/>
-                                <ComboBox ItemsSource="{Binding TextAlignments}"
-                                          SelectedItem="{Binding ChapterSubtitleAlignment, Mode=TwoWay}"
-                                          HorizontalAlignment="Stretch"/>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-                </TabControl>
-                
+                        </TabItem>
+                    </TabControl>
+
+                    <Separator Margin="0,10"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <StackPanel Grid.Row="2" Orientation="Vertical" Spacing="8" Margin="10">
                 <Button Content="Generate PDF Preview"
-                        HorizontalAlignment="Stretch"
-                        Margin="0,10,0,0"
-                        Command="{Binding GeneratePdfCommand}"/>
-                
+                        Command="{Binding GeneratePdfCommand}"
+                        HorizontalAlignment="Stretch"/>
                 <Button Content="Export PDF..."
-                        HorizontalAlignment="Stretch"
-                        Command="{Binding ExportPdfCommand}"/>
-                
+                        Command="{Binding ExportPdfCommand}"
+                        HorizontalAlignment="Stretch"/>
                 <TextBlock Margin="0,10,0,0"
                            Text="{Binding PageInfo}"
                            TextWrapping="Wrap"/>
             </StackPanel>
-        </ScrollViewer>
-        
-        <!-- RIGHT PANEL -->
-        <Grid Grid.Column="1" RowDefinitions="*,Auto" Margin="10">
-            <!-- PDF Preview -->
-            <Border Grid.Row="0"
-                    Background="LightGray"
-                    Padding="10">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Auto">
-                    <controls:PdfPreviewControl x:Name="PdfPreview"
-                                                MaxWidth="700"
-                                                MaxHeight="900"/>
-                </ScrollViewer>
-            </Border>
-            
-            <!-- Page Navigation Controls -->
-            <StackPanel Grid.Row="1"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Center"
-                        Spacing="10"
-                        Margin="0,10,0,0">
-                <Button Content="&lt;&lt; First"
-                        Command="{Binding GoToFirstPageCommand}"
-                        Width="80"/>
-                <Button Content="&lt; Previous"
-                        Command="{Binding GoToPreviousPageCommand}"
-                        Width="90"/>
-                <Button Content="Next &gt;"
-                        Command="{Binding GoToNextPageCommand}"
-                        Width="90"/>
-                <Button Content="Last &gt;&gt;"
-                        Command="{Binding GoToLastPageCommand}"
-                        Width="80"/>
-            </StackPanel>
+        </Grid>
+
+        <!-- RIGHT COLUMN -->
+        <Grid Grid.Column="1" Margin="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <TabControl>
+                <TabItem Header="Composition">
+                    <ScrollViewer>
+                        <StackPanel Spacing="10" Margin="6">
+                            <TextBlock Text="Document Content" FontWeight="Bold" FontSize="14"/>
+                            <TextBlock Text="Chapter Title:"/>
+                            <TextBox Text="{Binding Title, Mode=TwoWay}" HorizontalAlignment="Stretch"/>
+
+                            <TextBlock Text="Chapter Subtitle:"/>
+                            <TextBox Text="{Binding Subtitle, Mode=TwoWay}" HorizontalAlignment="Stretch"/>
+
+                            <TextBlock Text="Content:"/>
+                            <TextBox AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     Height="300"
+                                     Text="{Binding Content, Mode=TwoWay}"
+                                     HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Preview">
+                    <Grid RowDefinitions="*,Auto">
+                        <Border Grid.Row="0"
+                                Background="LightGray"
+                                Padding="10">
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Auto">
+                                <controls:PdfPreviewControl x:Name="PdfPreview"
+                                                            MaxWidth="700"
+                                                            MaxHeight="900"/>
+                            </ScrollViewer>
+                        </Border>
+
+                        <StackPanel Grid.Row="1"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Spacing="10"
+                                    Margin="0,10,0,0">
+                            <Button Content="&lt;&lt; First"
+                                    Command="{Binding GoToFirstPageCommand}"
+                                    Width="80"/>
+                            <Button Content="&lt; Previous"
+                                    Command="{Binding GoToPreviousPageCommand}"
+                                    Width="90"/>
+                            <Button Content="Next &gt;"
+                                    Command="{Binding GoToNextPageCommand}"
+                                    Width="90"/>
+                            <Button Content="Last &gt;&gt;"
+                                    Command="{Binding GoToLastPageCommand}"
+                                    Width="80"/>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+            </TabControl>
         </Grid>
     </Grid>
 </Window>

@@ -137,14 +137,6 @@ namespace PaperFinch.Components
                                          t.Justify();
                                      });
                                      break;
-                                 case "Footer":
-                                     col.Item().PaddingTop(20).Text(t =>
-                                     {
-                                         t.Span("Generated on: ");
-                                         t.Span(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")).Italic();
-                                         t.AlignCenter();
-                                     });
-                                     break;
                              }
                          }
                      });
@@ -353,19 +345,11 @@ namespace PaperFinch.Components
                 }
             }
 
-            // Footer if finished
-            if (state.ParagraphIndex >= _paragraphs.Count)
-            {
-                var candidate = ("Footer", string.Empty, false);
-                float after = MeasureFragmentsHeight(fragments.Concat(new[] { candidate }));
-                float inc = after - currentMeasuredTotal;
-                if (inc <= remaining)
-                {
-                    fragments.Add(candidate);
-                    currentMeasuredTotal = after;
-                    remaining -= inc;
-                }
-            }
+            // Footer if finished - REMOVED, no longer needed
+            // if (state.ParagraphIndex >= _paragraphs.Count)
+            // {
+            //     ...footer code removed...
+            // }
 
             // Final render (single CreateElement)
             var content = context.CreateElement(element =>
@@ -418,14 +402,6 @@ namespace PaperFinch.Components
                                         t.Span(f.Text).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize);
                                     }
                                     t.Justify();
-                                });
-                                break;
-                            case "Footer":
-                                col.Item().PaddingTop(20).Text(t =>
-                                {
-                                    t.Span("Generated on: ");
-                                    t.Span(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")).Italic();
-                                    t.AlignCenter();
                                 });
                                 break;
                         }
