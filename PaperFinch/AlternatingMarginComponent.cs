@@ -13,6 +13,7 @@ namespace PaperFinch.Components
         public int ParagraphIndex { get; set; }
         public bool TitleRendered { get; set; }
         public bool SubtitleRendered { get; set; }
+        public int CharacterOffset { get; set; }  // Track position within current paragraph
     }
 
     public class AlternatingMarginContent : IDynamicComponent<ContentState>
@@ -65,7 +66,8 @@ namespace PaperFinch.Components
         {
             ParagraphIndex = 0,
             TitleRendered = false,
-            SubtitleRendered = false
+            SubtitleRendered = false,
+            CharacterOffset = 0
         };
 
         public DynamicComponentComposeResult Compose(DynamicContext context)
@@ -216,16 +218,22 @@ namespace PaperFinch.Components
             // Paragraphs packing
             while (state.ParagraphIndex < _paragraphs.Count)
             {
-                var full = _paragraphs[state.ParagraphIndex];
+                var fullParagraph = _paragraphs[state.ParagraphIndex];
+
+                // Get the remaining text in this paragraph starting from our character offset
+                var full = fullParagraph.Substring(state.CharacterOffset);
+
                 if (string.IsNullOrWhiteSpace(full))
                 {
                     state.ParagraphIndex++;
+                    state.CharacterOffset = 0;
                     continue;
                 }
 
                 // First paragraph (index 0) should NOT be indented
                 // All subsequent paragraphs (index > 0) SHOULD be indented
-                bool shouldIndent = state.ParagraphIndex > 0;
+                // BUT: if we're continuing a paragraph from previous page (CharacterOffset > 0), don't indent
+                bool shouldIndent = state.ParagraphIndex > 0 && state.CharacterOffset == 0;
 
                 // Try whole paragraph
                 var candidatePara = ("Para", full, shouldIndent);
@@ -237,14 +245,12 @@ namespace PaperFinch.Components
                     currentMeasuredTotal = afterPara;
                     remaining -= incPara;
                     state.ParagraphIndex++;
+                    state.CharacterOffset = 0;
                     continue;
                 }
 
-                // Not enough remaining and not fresh page -> stop
-                if (remaining < availHeight && remaining > 0)
-                    break;
-
-                // Fresh page: binary search largest chunk that fits.
+                // Paragraph doesn't fit whole. Try to split it.
+                // Binary search for largest chunk that fits in remaining space
                 int low = 1, high = full.Length, best = 0;
                 while (low <= high)
                 {
@@ -268,43 +274,82 @@ namespace PaperFinch.Components
                     }
                 }
 
-                if (best == 0)
+                if (best > 0)
                 {
-                    // try first word fallback
-                    var words = full.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                    string firstWord = words.FirstOrDefault() ?? full.Substring(0, 1);
-                    var firstCandidate = ("Chunk", firstWord, shouldIndent);
-                    float afterWord = MeasureFragmentsHeight(fragments.Concat(new[] { firstCandidate }));
-                    float incWord = afterWord - currentMeasuredTotal;
-                    if (incWord <= remaining)
-                    {
-                        fragments.Add(firstCandidate);
-                        currentMeasuredTotal = afterWord;
-                        _paragraphs[state.ParagraphIndex] = full.Substring(firstWord.Length).TrimStart();
-                        remaining -= incWord;
-                        break;
-                    }
-
-                    // nothing fits: rare fallback render full paragraph
-                    fragments.Add(candidatePara);
-                    currentMeasuredTotal = afterPara;
-                    remaining -= incPara;
-                    state.ParagraphIndex++;
-                    break;
-                }
-                else
-                {
+                    // Found a chunk that fits
                     var chunkText = full.Substring(0, best);
-                    var remainder = full.Substring(best).TrimStart();
                     var chunkCandidate = ("Chunk", chunkText, shouldIndent);
                     float afterChunk = MeasureFragmentsHeight(fragments.Concat(new[] { chunkCandidate }));
                     float incChunk = afterChunk - currentMeasuredTotal;
 
                     fragments.Add(chunkCandidate);
                     currentMeasuredTotal = afterChunk;
-                    _paragraphs[state.ParagraphIndex] = remainder;
+
+                    // Update character offset to track where we are in the paragraph
+                    state.CharacterOffset += best;
+
+                    // Trim leading whitespace from next chunk
+                    while (state.CharacterOffset < fullParagraph.Length &&
+                           char.IsWhiteSpace(fullParagraph[state.CharacterOffset]))
+                    {
+                        state.CharacterOffset++;
+                    }
+
                     remaining -= incChunk;
-                    break; // page full for now
+
+                    // Check if we've consumed the entire paragraph
+                    if (state.CharacterOffset >= fullParagraph.Length)
+                    {
+                        state.ParagraphIndex++;
+                        state.CharacterOffset = 0;
+                    }
+
+                    break; // page full, continue on next page
+                }
+                else
+                {
+                    // Nothing fits in remaining space
+                    // If we have content already on this page, stop here
+                    if (fragments.Count > 0 && remaining < availHeight)
+                    {
+                        break;
+                    }
+
+                    // Otherwise try to fit at least one word on a fresh page
+                    var words = full.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    string firstWord = words.FirstOrDefault() ?? full.Substring(0, Math.Min(1, full.Length));
+                    var firstCandidate = ("Chunk", firstWord, shouldIndent);
+                    float afterWord = MeasureFragmentsHeight(fragments.Concat(new[] { firstCandidate }));
+                    float incWord = afterWord - currentMeasuredTotal;
+
+                    if (incWord <= remaining || incWord <= availHeight)
+                    {
+                        fragments.Add(firstCandidate);
+                        currentMeasuredTotal = afterWord;
+
+                        state.CharacterOffset += firstWord.Length;
+
+                        // Trim leading whitespace
+                        while (state.CharacterOffset < fullParagraph.Length &&
+                               char.IsWhiteSpace(fullParagraph[state.CharacterOffset]))
+                        {
+                            state.CharacterOffset++;
+                        }
+
+                        remaining -= incWord;
+
+                        if (state.CharacterOffset >= fullParagraph.Length)
+                        {
+                            state.ParagraphIndex++;
+                            state.CharacterOffset = 0;
+                        }
+                        break;
+                    }
+                    else
+                    {
+                        // Even one word doesn't fit - this is rare, just stop
+                        break;
+                    }
                 }
             }
 
