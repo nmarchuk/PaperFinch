@@ -25,7 +25,8 @@ namespace PaperFinch.Services
             _jsonOptions = new JsonSerializerOptions
             {
                 WriteIndented = true,
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
+                Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
             };
         }
 
@@ -37,9 +38,25 @@ namespace PaperFinch.Services
             themes.Add(new PdfTheme
             {
                 Name = "Default",
-                FontSize = 12,
-                MarginSize = 1.0,
-                TrimSize = TrimSize.Standard_6x9
+                TrimSize = TrimSize.Standard_6x9,
+                InsideMargin = 0.875,
+                OutsideMargin = 0.5,
+                TopMargin = 0.75,
+                BottomMargin = 0.75,
+                BodyFont = "Times New Roman",
+                BodyFontSize = 12,
+                LineSpacing = 1.2,
+                ParagraphIndent = 0.3,
+                ChapterTitleFont = "Times New Roman",
+                ChapterTitleFontSize = 24,
+                ChapterTitleBold = true,
+                ChapterTitleItalic = false,
+                ChapterTitleAlignment = TextAlignment.Center,
+                ChapterSubtitleFont = "Times New Roman",
+                ChapterSubtitleFontSize = 18,
+                ChapterSubtitleBold = false,
+                ChapterSubtitleItalic = true,
+                ChapterSubtitleAlignment = TextAlignment.Center
             });
 
             // Load all theme files

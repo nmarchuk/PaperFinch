@@ -1,23 +1,72 @@
 ﻿using PaperFinch.Models;
+using QuestPDF.Infrastructure;
 
 namespace PaperFinch.Models
 {
     public class PdfTheme
     {
         public string Name { get; set; } = "Default";
-        public int FontSize { get; set; } = 12;
-        public double MarginSize { get; set; } = 1.0;
+
+        // Page Settings
         public TrimSize TrimSize { get; set; } = TrimSize.Standard_6x9;
+        public double InsideMargin { get; set; } = 0.875;
+        public double OutsideMargin { get; set; } = 0.5;
+        public double TopMargin { get; set; } = 0.75;
+        public double BottomMargin { get; set; } = 0.75;
+
+        // Body Text Settings
+        public string BodyFont { get; set; } = "Times New Roman";
+        public int BodyFontSize { get; set; } = 12;
+        public double LineSpacing { get; set; } = 1.2;
+        public double ParagraphIndent { get; set; } = 0.3;
+
+        // Chapter Title Settings
+        public string ChapterTitleFont { get; set; } = "Times New Roman";
+        public int ChapterTitleFontSize { get; set; } = 24;
+        public bool ChapterTitleBold { get; set; } = true;
+        public bool ChapterTitleItalic { get; set; } = false;
+        public TextAlignment ChapterTitleAlignment { get; set; } = TextAlignment.Center;
+
+        // Chapter Subtitle Settings
+        public string ChapterSubtitleFont { get; set; } = "Times New Roman";
+        public int ChapterSubtitleFontSize { get; set; } = 18;
+        public bool ChapterSubtitleBold { get; set; } = false;
+        public bool ChapterSubtitleItalic { get; set; } = true;
+        public TextAlignment ChapterSubtitleAlignment { get; set; } = TextAlignment.Center;
 
         public PdfTheme Clone()
         {
             return new PdfTheme
             {
                 Name = Name,
-                FontSize = FontSize,
-                MarginSize = MarginSize,
-                TrimSize = TrimSize
+                TrimSize = TrimSize,
+                InsideMargin = InsideMargin,
+                OutsideMargin = OutsideMargin,
+                TopMargin = TopMargin,
+                BottomMargin = BottomMargin,
+                BodyFont = BodyFont,
+                BodyFontSize = BodyFontSize,
+                LineSpacing = LineSpacing,
+                ParagraphIndent = ParagraphIndent,
+                ChapterTitleFont = ChapterTitleFont,
+                ChapterTitleFontSize = ChapterTitleFontSize,
+                ChapterTitleBold = ChapterTitleBold,
+                ChapterTitleItalic = ChapterTitleItalic,
+                ChapterTitleAlignment = ChapterTitleAlignment,
+                ChapterSubtitleFont = ChapterSubtitleFont,
+                ChapterSubtitleFontSize = ChapterSubtitleFontSize,
+                ChapterSubtitleBold = ChapterSubtitleBold,
+                ChapterSubtitleItalic = ChapterSubtitleItalic,
+                ChapterSubtitleAlignment = ChapterSubtitleAlignment
             };
         }
+    }
+
+    public enum TextAlignment
+    {
+        Left,
+        Center,
+        Right,
+        Justify
     }
 }

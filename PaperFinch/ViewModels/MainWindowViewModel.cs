@@ -10,29 +10,56 @@ using System.Linq;
 using System.Threading.Tasks;
 using PaperFinch.Models;
 using PaperFinch.Services;
+using PaperFinch.Components;
 
 namespace PaperFinch.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly ThemeService _themeService;
+    private readonly FontService _fontService;
 
-    private string _title = "Sample Document";
-    private string _content = "This is a sample PDF document generated with QuestPDF.";
+    private string _title = "Chapter 1";
+    private string _subtitle = "The Beginning";
+    private string _content = "This is a sample paragraph with proper formatting. It demonstrates justified text with appropriate line spacing and paragraph indentation.\n\nThis is a second paragraph to show how indentation works across multiple paragraphs in a properly formatted novel.\n\nThis is a third paragraph to further demonstrate the formatting.";
     private string _pageInfo = "No PDF loaded";
     private int _currentPage = 0;
     private int _totalPages = 0;
-    private int _fontSize = 12;
-    private double _marginSize = 1.0;
-    private TrimSizeItem _selectedTrimSize;
     private byte[]? _currentPdfBytes;
     private PdfTheme? _selectedTheme;
     private List<PdfTheme> _themes = new();
+
+    // Theme property holders for UI binding
+    private double _insideMargin = 0.875;
+    private double _outsideMargin = 0.5;
+    private double _topMargin = 0.75;
+    private double _bottomMargin = 0.75;
+    private TrimSizeItem _selectedTrimSize;
+    private string _bodyFont = "Times New Roman";
+    private int _bodyFontSize = 12;
+    private double _lineSpacing = 1.2;
+    private double _paragraphIndent = 0.3;
+    private string _chapterTitleFont = "Times New Roman";
+    private int _chapterTitleFontSize = 24;
+    private bool _chapterTitleBold = true;
+    private bool _chapterTitleItalic = false;
+    private TextAlignment _chapterTitleAlignment = TextAlignment.Center;
+    private string _chapterSubtitleFont = "Times New Roman";
+    private int _chapterSubtitleFontSize = 18;
+    private bool _chapterSubtitleBold = false;
+    private bool _chapterSubtitleItalic = true;
+    private TextAlignment _chapterSubtitleAlignment = TextAlignment.Center;
 
     public string Title
     {
         get => _title;
         set => SetProperty(ref _title, value);
+    }
+
+    public string Subtitle
+    {
+        get => _subtitle;
+        set => SetProperty(ref _subtitle, value);
     }
 
     public string Content
@@ -77,16 +104,116 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public int FontSize
+    // Margin Properties
+    public double InsideMargin
     {
-        get => _fontSize;
-        set => SetProperty(ref _fontSize, value);
+        get => _insideMargin;
+        set => SetProperty(ref _insideMargin, value);
     }
 
-    public double MarginSize
+    public double OutsideMargin
     {
-        get => _marginSize;
-        set => SetProperty(ref _marginSize, value);
+        get => _outsideMargin;
+        set => SetProperty(ref _outsideMargin, value);
+    }
+
+    public double TopMargin
+    {
+        get => _topMargin;
+        set => SetProperty(ref _topMargin, value);
+    }
+
+    public double BottomMargin
+    {
+        get => _bottomMargin;
+        set => SetProperty(ref _bottomMargin, value);
+    }
+
+    // Body Text Properties
+    public string BodyFont
+    {
+        get => _bodyFont;
+        set => SetProperty(ref _bodyFont, value);
+    }
+
+    public int BodyFontSize
+    {
+        get => _bodyFontSize;
+        set => SetProperty(ref _bodyFontSize, value);
+    }
+
+    public double LineSpacing
+    {
+        get => _lineSpacing;
+        set => SetProperty(ref _lineSpacing, value);
+    }
+
+    public double ParagraphIndent
+    {
+        get => _paragraphIndent;
+        set => SetProperty(ref _paragraphIndent, value);
+    }
+
+    // Chapter Title Properties
+    public string ChapterTitleFont
+    {
+        get => _chapterTitleFont;
+        set => SetProperty(ref _chapterTitleFont, value);
+    }
+
+    public int ChapterTitleFontSize
+    {
+        get => _chapterTitleFontSize;
+        set => SetProperty(ref _chapterTitleFontSize, value);
+    }
+
+    public bool ChapterTitleBold
+    {
+        get => _chapterTitleBold;
+        set => SetProperty(ref _chapterTitleBold, value);
+    }
+
+    public bool ChapterTitleItalic
+    {
+        get => _chapterTitleItalic;
+        set => SetProperty(ref _chapterTitleItalic, value);
+    }
+
+    public TextAlignment ChapterTitleAlignment
+    {
+        get => _chapterTitleAlignment;
+        set => SetProperty(ref _chapterTitleAlignment, value);
+    }
+
+    // Chapter Subtitle Properties
+    public string ChapterSubtitleFont
+    {
+        get => _chapterSubtitleFont;
+        set => SetProperty(ref _chapterSubtitleFont, value);
+    }
+
+    public int ChapterSubtitleFontSize
+    {
+        get => _chapterSubtitleFontSize;
+        set => SetProperty(ref _chapterSubtitleFontSize, value);
+    }
+
+    public bool ChapterSubtitleBold
+    {
+        get => _chapterSubtitleBold;
+        set => SetProperty(ref _chapterSubtitleBold, value);
+    }
+
+    public bool ChapterSubtitleItalic
+    {
+        get => _chapterSubtitleItalic;
+        set => SetProperty(ref _chapterSubtitleItalic, value);
+    }
+
+    public TextAlignment ChapterSubtitleAlignment
+    {
+        get => _chapterSubtitleAlignment;
+        set => SetProperty(ref _chapterSubtitleAlignment, value);
     }
 
     public TrimSizeItem SelectedTrimSize
@@ -115,6 +242,8 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     public List<TrimSizeItem> TrimSizes { get; }
+    public List<string> AvailableFonts { get; }
+    public List<TextAlignment> TextAlignments { get; }
 
     // Delegate for the View to inject the PDF loader
     public Action<byte[]>? LoadPdfAction { get; set; }
@@ -125,7 +254,9 @@ public partial class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel()
     {
         QuestPDF.Settings.License = LicenseType.Community;
+
         _themeService = new ThemeService();
+        _fontService = FontService.Instance;
 
         // Populate trim sizes from enum
         TrimSizes = Enum.GetValues<TrimSize>()
@@ -134,6 +265,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Set default selection
         _selectedTrimSize = TrimSizes.First(ts => ts.Size == TrimSize.Standard_6x9);
+
+        // Populate available fonts
+        AvailableFonts = _fontService.GetAvailableFonts();
+
+        // Populate text alignments
+        TextAlignments = Enum.GetValues<TextAlignment>().ToList();
 
         // Load themes asynchronously
         _ = LoadThemesAsync();
@@ -147,9 +284,25 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ApplyTheme(PdfTheme theme)
     {
-        FontSize = theme.FontSize;
-        MarginSize = theme.MarginSize;
+        InsideMargin = theme.InsideMargin;
+        OutsideMargin = theme.OutsideMargin;
+        TopMargin = theme.TopMargin;
+        BottomMargin = theme.BottomMargin;
         SelectedTrimSize = TrimSizes.First(ts => ts.Size == theme.TrimSize);
+        BodyFont = theme.BodyFont;
+        BodyFontSize = theme.BodyFontSize;
+        LineSpacing = theme.LineSpacing;
+        ParagraphIndent = theme.ParagraphIndent;
+        ChapterTitleFont = theme.ChapterTitleFont;
+        ChapterTitleFontSize = theme.ChapterTitleFontSize;
+        ChapterTitleBold = theme.ChapterTitleBold;
+        ChapterTitleItalic = theme.ChapterTitleItalic;
+        ChapterTitleAlignment = theme.ChapterTitleAlignment;
+        ChapterSubtitleFont = theme.ChapterSubtitleFont;
+        ChapterSubtitleFontSize = theme.ChapterSubtitleFontSize;
+        ChapterSubtitleBold = theme.ChapterSubtitleBold;
+        ChapterSubtitleItalic = theme.ChapterSubtitleItalic;
+        ChapterSubtitleAlignment = theme.ChapterSubtitleAlignment;
     }
 
     private PdfTheme CreateThemeFromCurrentSettings(string name)
@@ -157,9 +310,25 @@ public partial class MainWindowViewModel : ViewModelBase
         return new PdfTheme
         {
             Name = name,
-            FontSize = FontSize,
-            MarginSize = MarginSize,
-            TrimSize = SelectedTrimSize.Size
+            TrimSize = SelectedTrimSize.Size,
+            InsideMargin = InsideMargin,
+            OutsideMargin = OutsideMargin,
+            TopMargin = TopMargin,
+            BottomMargin = BottomMargin,
+            BodyFont = BodyFont,
+            BodyFontSize = BodyFontSize,
+            LineSpacing = LineSpacing,
+            ParagraphIndent = ParagraphIndent,
+            ChapterTitleFont = ChapterTitleFont,
+            ChapterTitleFontSize = ChapterTitleFontSize,
+            ChapterTitleBold = ChapterTitleBold,
+            ChapterTitleItalic = ChapterTitleItalic,
+            ChapterTitleAlignment = ChapterTitleAlignment,
+            ChapterSubtitleFont = ChapterSubtitleFont,
+            ChapterSubtitleFontSize = ChapterSubtitleFontSize,
+            ChapterSubtitleBold = ChapterSubtitleBold,
+            ChapterSubtitleItalic = ChapterSubtitleItalic,
+            ChapterSubtitleAlignment = ChapterSubtitleAlignment
         };
     }
 
@@ -170,8 +339,10 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             PageInfo = "Generating PDF...";
 
+            var theme = CreateThemeFromCurrentSettings("Current");
+
             // Generate the PDF on a thread-pool thread so UI stays responsive
-            byte[] pdfBytes = await Task.Run(() => GeneratePdfDocument(Title, Content, FontSize, MarginSize, SelectedTrimSize.Size));
+            byte[] pdfBytes = await Task.Run(() => GeneratePdfDocument(Title, Subtitle, Content, theme));
 
             if (LoadPdfAction == null)
             {
@@ -358,38 +529,35 @@ public partial class MainWindowViewModel : ViewModelBase
         GoToLastPageCommand.NotifyCanExecuteChanged();
     }
 
-    private byte[] GeneratePdfDocument(string title, string content, int fontSize, double marginSize, TrimSize trimSize)
+    private byte[] GeneratePdfDocument(string chapterTitle, string chapterSubtitle, string content, PdfTheme theme)
     {
         using var stream = new MemoryStream();
-        var (width, height) = trimSize.GetDimensions();
+        var (width, height) = theme.TrimSize.GetDimensions();
 
         Document.Create(container =>
         {
             container.Page(page =>
             {
                 page.Size(width, height, Unit.Inch);
-                page.Margin((float)marginSize, Unit.Inch);
                 page.PageColor(Colors.White);
-                page.DefaultTextStyle(x => x.FontSize(fontSize));
 
-                page.Header()
-                    .Text(title)
-                    .SemiBold()
-                    .FontSize(fontSize + 8)
-                    .FontColor(Colors.Blue.Medium);
+                // Set top and bottom margins
+                page.MarginTop((float)theme.TopMargin, Unit.Inch);
+                page.MarginBottom((float)theme.BottomMargin, Unit.Inch);
 
-                page.Content()
-                    .PaddingVertical(1, Unit.Centimetre)
-                    .Column(col =>
-                    {
-                        col.Item().Text(content);
-                        col.Item().PaddingTop(20).Text(text =>
-                        {
-                            text.Span("Generated on: ");
-                            text.Span(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
-                                .Italic();
-                        });
-                    });
+                // Default text style
+                page.DefaultTextStyle(x => x
+                    .FontFamily(theme.BodyFont)
+                    .FontSize(theme.BodyFontSize)
+                    .LineHeight((float)theme.LineSpacing));
+
+                // Use dynamic component that manages its own pagination
+                page.Content().Dynamic(new AlternatingMarginContent(
+                    chapterTitle,
+                    chapterSubtitle,
+                    content,
+                    theme
+                ));
 
                 page.Footer()
                     .AlignCenter()
@@ -404,6 +572,113 @@ public partial class MainWindowViewModel : ViewModelBase
         }).GeneratePdf(stream);
 
         return stream.ToArray();
+    }
+
+    private void RenderPageContent(ColumnDescriptor col, string chapterTitle, string chapterSubtitle, string content, PdfTheme theme)
+    {
+        // Chapter Title
+        if (!string.IsNullOrWhiteSpace(chapterTitle))
+        {
+            col.Item().Text(text =>
+            {
+                var span = text.Span(chapterTitle);
+                span.FontFamily(theme.ChapterTitleFont);
+                span.FontSize(theme.ChapterTitleFontSize);
+                if (theme.ChapterTitleBold) span.SemiBold();
+                if (theme.ChapterTitleItalic) span.Italic();
+
+                ApplyAlignment(text, theme.ChapterTitleAlignment);
+            });
+            col.Item().PaddingBottom(10);
+        }
+
+        // Chapter Subtitle
+        if (!string.IsNullOrWhiteSpace(chapterSubtitle))
+        {
+            col.Item().Text(text =>
+            {
+                var span = text.Span(chapterSubtitle);
+                span.FontFamily(theme.ChapterSubtitleFont);
+                span.FontSize(theme.ChapterSubtitleFontSize);
+                if (theme.ChapterSubtitleBold) span.SemiBold();
+                if (theme.ChapterSubtitleItalic) span.Italic();
+
+                ApplyAlignment(text, theme.ChapterSubtitleAlignment);
+            });
+            col.Item().PaddingBottom(20);
+        }
+
+        // Body Content - split into paragraphs
+        var paragraphs = content.Split(new[] { "\n\n", "\r\n\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+        for (int i = 0; i < paragraphs.Length; i++)
+        {
+            var para = paragraphs[i].Trim();
+            if (!string.IsNullOrWhiteSpace(para))
+            {
+                // First paragraph after chapter title doesn't get indented
+                // All subsequent paragraphs get a first-line indent
+                var shouldIndent = i > 0;
+
+                if (shouldIndent)
+                {
+                    // Use Row to create first-line indent
+                    col.Item().Row(row =>
+                    {
+                        // Empty space for indent
+                        row.ConstantItem((float)theme.ParagraphIndent, Unit.Inch);
+
+                        // Paragraph text
+                        row.RelativeItem().Text(text =>
+                        {
+                            text.Span(para).FontFamily(theme.BodyFont).FontSize(theme.BodyFontSize);
+                            text.Justify();
+                        });
+                    });
+                }
+                else
+                {
+                    // No indent for first paragraph
+                    col.Item().Text(text =>
+                    {
+                        text.Span(para).FontFamily(theme.BodyFont).FontSize(theme.BodyFontSize);
+                        text.Justify();
+                    });
+                }
+
+                if (i < paragraphs.Length - 1)
+                {
+                    col.Item().PaddingBottom(8);
+                }
+            }
+        }
+
+        // Footer with timestamp
+        col.Item().PaddingTop(20).Text(text =>
+        {
+            text.Span("Generated on: ");
+            text.Span(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")).Italic();
+            text.AlignCenter();
+        });
+    }
+
+    private void ApplyAlignment(TextDescriptor text, TextAlignment alignment)
+    {
+        switch (alignment)
+        {
+            case TextAlignment.Left:
+                text.AlignLeft();
+                break;
+            case TextAlignment.Center:
+                text.AlignCenter();
+                break;
+            case TextAlignment.Right:
+                text.AlignRight();
+                break;
+            case TextAlignment.Justify:
+                text.Justify();
+                break;
+        }
     }
 }
 

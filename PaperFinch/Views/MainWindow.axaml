@@ -8,19 +8,19 @@
         x:Class="PaperFinch.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="PDF Generator with Live Preview"
-        Width="900"
-        Height="750"
+        Width="1100"
+        Height="800"
         Icon="/Assets/avalonia-logo.ico">
     <Design.DataContext>
         <vm:MainWindowViewModel/>
     </Design.DataContext>
     
-    <Grid ColumnDefinitions="300,*" RowDefinitions="*">
+    <Grid ColumnDefinitions="600,*" RowDefinitions="*">
         <!-- LEFT PANEL -->
         <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="10" Spacing="10">
                 <!-- Theme Selection -->
-                <TextBlock Text="Theme:" FontWeight="Bold"/>
+                <TextBlock Text="Theme:" FontWeight="Bold" FontSize="14"/>
                 <ComboBox ItemsSource="{Binding Themes}"
                           SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
                           HorizontalAlignment="Stretch">
@@ -35,88 +35,190 @@
                     <Button Content="Save Theme"
                             Command="{Binding SaveThemeCommand}"
                             HorizontalAlignment="Stretch"
-                            Width="130"/>
+                            Width="110"/>
                     <Button Content="Save As New..."
                             Command="{Binding SaveAsNewThemeCommand}"
                             HorizontalAlignment="Stretch"
-                            Width="130"/>
+                            Width="110"/>
+                    <Button Content="Delete"
+                            Command="{Binding DeleteThemeCommand}"
+                            HorizontalAlignment="Stretch"
+                            Width="110"/>
                 </StackPanel>
-                
-                <Button Content="Delete Theme"
-                        Command="{Binding DeleteThemeCommand}"
-                        HorizontalAlignment="Stretch"/>
                 
                 <Separator Margin="0,10"/>
                 
-                <TextBlock Text="Document Title:" FontWeight="Bold"/>
-                <TextBox Watermark="Enter title..."
-                         Text="{Binding Title, Mode=TwoWay}"/>
+                <!-- Document Content -->
+                <TextBlock Text="Document Content" FontWeight="Bold" FontSize="14"/>
                 
-                <TextBlock Text="Content:"
-                           FontWeight="Bold"
-                           Margin="0,10,0,0"/>
-                <TextBox Watermark="Enter content..."
-                         AcceptsReturn="True"
+                <TextBlock Text="Chapter Title:"/>
+                <TextBox Text="{Binding Title, Mode=TwoWay}"/>
+                
+                <TextBlock Text="Chapter Subtitle:"/>
+                <TextBox Text="{Binding Subtitle, Mode=TwoWay}"/>
+                
+                <TextBlock Text="Content:"/>
+                <TextBox AcceptsReturn="True"
                          TextWrapping="Wrap"
-                         Height="150"
+                         Height="120"
                          Text="{Binding Content, Mode=TwoWay}"/>
                 
-                <!-- Page Settings -->
-                <TextBlock Text="Page Settings:"
-                           FontWeight="Bold"
-                           Margin="0,15,0,0"/>
+                <Separator Margin="0,10"/>
                 
-                <TextBlock Text="Trim Size:"/>
-                <ComboBox ItemsSource="{Binding TrimSizes}"
-                          SelectedItem="{Binding SelectedTrimSize, Mode=TwoWay}"
-                          HorizontalAlignment="Stretch">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding DisplayName}"/>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                
-                <TextBlock Text="Font Size:" Margin="0,5,0,0"/>
-                <Grid ColumnDefinitions="*,Auto">
-                    <NumericUpDown Grid.Column="0"
-                                   Value="{Binding FontSize, Mode=TwoWay}"
-                                   Minimum="8"
-                                   Maximum="72"
-                                   Increment="1"
-                                   FormatString="0"/>
-                    <TextBlock Grid.Column="1" 
-                               Text="pt" 
-                               VerticalAlignment="Center"
-                               Margin="5,0,0,0"/>
-                </Grid>
-                
-                <TextBlock Text="Margin Size:" Margin="0,5,0,0"/>
-                <Grid ColumnDefinitions="*,Auto">
-                    <NumericUpDown Grid.Column="0"
-                                   Value="{Binding MarginSize, Mode=TwoWay}"
-                                   Minimum="0.25"
-                                   Maximum="3"
-                                   Increment="0.25"
-                                   FormatString="0.00"/>
-                    <TextBlock Grid.Column="1" 
-                               Text="in" 
-                               VerticalAlignment="Center"
-                               Margin="5,0,0,0"/>
-                </Grid>
+                <!-- Tabbed Settings -->
+                <TabControl Height="450">
+                    <!-- Page Settings Tab -->
+                    <TabItem Header="Page">
+                        <ScrollViewer>
+                            <StackPanel Margin="5" Spacing="8">
+                                <TextBlock Text="Trim Size:"/>
+                                <ComboBox ItemsSource="{Binding TrimSizes}"
+                                          SelectedItem="{Binding SelectedTrimSize, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayName}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                
+                                <TextBlock Text="Inside Margin (in):" Margin="0,8,0,0"/>
+                                <NumericUpDown Value="{Binding InsideMargin, Mode=TwoWay}"
+                                               Minimum="0"
+                                               Maximum="3"
+                                               Increment="0.125"
+                                               FormatString="0.000"/>
+                                
+                                <TextBlock Text="Outside Margin (in):"/>
+                                <NumericUpDown Value="{Binding OutsideMargin, Mode=TwoWay}"
+                                               Minimum="0"
+                                               Maximum="3"
+                                               Increment="0.125"
+                                               FormatString="0.000"/>
+                                
+                                <TextBlock Text="Top Margin (in):"/>
+                                <NumericUpDown Value="{Binding TopMargin, Mode=TwoWay}"
+                                               Minimum="0"
+                                               Maximum="3"
+                                               Increment="0.125"
+                                               FormatString="0.000"/>
+                                
+                                <TextBlock Text="Bottom Margin (in):"/>
+                                <NumericUpDown Value="{Binding BottomMargin, Mode=TwoWay}"
+                                               Minimum="0"
+                                               Maximum="3"
+                                               Increment="0.125"
+                                               FormatString="0.000"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                    
+                    <!-- Body Text Tab -->
+                    <TabItem Header="Body Text">
+                        <ScrollViewer>
+                            <StackPanel Margin="5" Spacing="8">
+                                <TextBlock Text="Font:"/>
+                                <ComboBox ItemsSource="{Binding AvailableFonts}"
+                                          SelectedItem="{Binding BodyFont, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch"/>
+                                
+                                <TextBlock Text="Font Size (pt):"/>
+                                <NumericUpDown Value="{Binding BodyFontSize, Mode=TwoWay}"
+                                               Minimum="6"
+                                               Maximum="72"
+                                               Increment="1"
+                                               FormatString="0"/>
+                                
+                                <TextBlock Text="Line Spacing:"/>
+                                <NumericUpDown Value="{Binding LineSpacing, Mode=TwoWay}"
+                                               Minimum="1.0"
+                                               Maximum="3.0"
+                                               Increment="0.1"
+                                               FormatString="0.0"/>
+                                
+                                <TextBlock Text="Paragraph Indent (in):"/>
+                                <NumericUpDown Value="{Binding ParagraphIndent, Mode=TwoWay}"
+                                               Minimum="0"
+                                               Maximum="1"
+                                               Increment="0.05"
+                                               FormatString="0.00"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                    
+                    <!-- Chapter Title Tab -->
+                    <TabItem Header="Chapter Title">
+                        <ScrollViewer>
+                            <StackPanel Margin="5" Spacing="8">
+                                <TextBlock Text="Font:"/>
+                                <ComboBox ItemsSource="{Binding AvailableFonts}"
+                                          SelectedItem="{Binding ChapterTitleFont, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch"/>
+                                
+                                <TextBlock Text="Font Size (pt):"/>
+                                <NumericUpDown Value="{Binding ChapterTitleFontSize, Mode=TwoWay}"
+                                               Minimum="6"
+                                               Maximum="72"
+                                               Increment="1"
+                                               FormatString="0"/>
+                                
+                                <CheckBox Content="Bold"
+                                          IsChecked="{Binding ChapterTitleBold, Mode=TwoWay}"/>
+                                
+                                <CheckBox Content="Italic"
+                                          IsChecked="{Binding ChapterTitleItalic, Mode=TwoWay}"/>
+                                
+                                <TextBlock Text="Alignment:"/>
+                                <ComboBox ItemsSource="{Binding TextAlignments}"
+                                          SelectedItem="{Binding ChapterTitleAlignment, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                    
+                    <!-- Chapter Subtitle Tab -->
+                    <TabItem Header="Subtitle">
+                        <ScrollViewer>
+                            <StackPanel Margin="5" Spacing="8">
+                                <TextBlock Text="Font:"/>
+                                <ComboBox ItemsSource="{Binding AvailableFonts}"
+                                          SelectedItem="{Binding ChapterSubtitleFont, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch"/>
+                                
+                                <TextBlock Text="Font Size (pt):"/>
+                                <NumericUpDown Value="{Binding ChapterSubtitleFontSize, Mode=TwoWay}"
+                                               Minimum="6"
+                                               Maximum="72"
+                                               Increment="1"
+                                               FormatString="0"/>
+                                
+                                <CheckBox Content="Bold"
+                                          IsChecked="{Binding ChapterSubtitleBold, Mode=TwoWay}"/>
+                                
+                                <CheckBox Content="Italic"
+                                          IsChecked="{Binding ChapterSubtitleItalic, Mode=TwoWay}"/>
+                                
+                                <TextBlock Text="Alignment:"/>
+                                <ComboBox ItemsSource="{Binding TextAlignments}"
+                                          SelectedItem="{Binding ChapterSubtitleAlignment, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
                 
                 <Button Content="Generate PDF Preview"
                         HorizontalAlignment="Stretch"
-                        Margin="0,15,0,0"
+                        Margin="0,10,0,0"
                         Command="{Binding GeneratePdfCommand}"/>
                 
                 <Button Content="Export PDF..."
                         HorizontalAlignment="Stretch"
-                        Margin="0,5,0,0"
                         Command="{Binding ExportPdfCommand}"/>
                 
                 <TextBlock Margin="0,10,0,0"
-                           Text="{Binding PageInfo}"/>
+                           Text="{Binding PageInfo}"
+                           TextWrapping="Wrap"/>
             </StackPanel>
         </ScrollViewer>
         
@@ -129,8 +231,8 @@
                 <ScrollViewer HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Auto">
                     <controls:PdfPreviewControl x:Name="PdfPreview"
-                                                MaxWidth="600"
-                                                MaxHeight="800"/>
+                                                MaxWidth="700"
+                                                MaxHeight="900"/>
                 </ScrollViewer>
             </Border>
             
