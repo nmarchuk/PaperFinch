@@ -296,12 +296,27 @@ public partial class MainWindowViewModel : ViewModelBase
             LoadPdfAction.Invoke(pdfBytes);
             _currentPdfBytes = pdfBytes;
 
-            // Jump to the selected chapter's starting page, or page 1 if no chapter selected
-            JumpToSelectedChapter();
-
-            // Ensure CurrentPage is at least 1 if not already set by JumpToSelectedChapter
+            // Keep the current page if we're already viewing, otherwise jump to selected chapter or page 1
             if (CurrentPage == 0 && TotalPages > 0)
             {
+                // First time loading - jump to selected chapter or page 1
+                JumpToSelectedChapter();
+                if (CurrentPage == 0)
+                {
+                    CurrentPage = 1;
+                    RenderPageAction?.Invoke(0);
+                    UpdatePageInfo();
+                }
+            }
+            else if (CurrentPage > 0 && CurrentPage <= TotalPages)
+            {
+                // Already viewing - stay on the same page
+                RenderPageAction?.Invoke(CurrentPage - 1);
+                UpdatePageInfo();
+            }
+            else if (TotalPages > 0)
+            {
+                // Current page is out of bounds, go to page 1
                 CurrentPage = 1;
                 RenderPageAction?.Invoke(0);
                 UpdatePageInfo();

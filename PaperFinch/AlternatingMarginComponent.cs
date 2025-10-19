@@ -79,9 +79,12 @@ namespace PaperFinch.Components
         {
             var state = State;
 
-            // Calculate the actual page number with offset
-            var pageNumber = (int)context.PageNumber + _pageNumberOffset;
-            var isOdd = pageNumber % 2 == 1;
+            // For margins, use the QuestPDF page number (not offset) to determine odd/even
+            // This ensures first page is always right-hand (odd)
+            var isOdd = context.PageNumber % 2 == 1;
+
+            // For displayed page number, apply the offset
+            var displayPageNumber = (int)context.PageNumber + _pageNumberOffset;
 
             float availHeight = Convert.ToSingle(context.AvailableSize.Height);
             float availWidth = Convert.ToSingle(context.AvailableSize.Width);
@@ -103,8 +106,19 @@ namespace PaperFinch.Components
                      .PaddingRight(rightMargin, Unit.Inch)
                      .Column(col =>
                      {
-                         // Add space for page number header if enabled
-                         if (_showPageNumbers)
+                         // Check if this page will have a chapter title
+                         bool hasTitle = fragments.Any(f => f.Type == "Title");
+
+                         // Add top offset if this is the first page of the chapter
+                         // Use State property to match what render will see
+                         bool isFirstPage = hasTitle && State.ParagraphIndex == 0 && State.CharacterOffset == 0 && !State.TitleRendered;
+                         if (isFirstPage)
+                         {
+                             col.Item().Height((float)_theme.ChapterHeadingTopOffset, Unit.Inch);
+                         }
+
+                         // Add space for page number header if enabled (and no title)
+                         if (_showPageNumbers && !hasTitle)
                          {
                              col.Item().Height(0.5f, Unit.Inch);
                          }
@@ -115,14 +129,9 @@ namespace PaperFinch.Components
                              switch (f.Type)
                              {
                                  case "Title":
-                                     // Add top offset for chapter heading
-                                     if (isFirst && !state.TitleRendered)
-                                     {
-                                         col.Item().Height((float)_theme.ChapterHeadingTopOffset, Unit.Inch);
-                                     }
                                      isFirst = false;
 
-                                     col.Item().PaddingBottom((float)_theme.ChapterTitleBottomSpacing, Unit.Inch).Text(t =>
+                                     col.Item().Text(t =>
                                      {
                                          var s = t.Span(f.Text);
                                          s.FontFamily(_theme.ChapterTitleFont);
@@ -131,10 +140,12 @@ namespace PaperFinch.Components
                                          if (_theme.ChapterTitleItalic) s.Italic();
                                          ApplyAlignment(t, _theme.ChapterTitleAlignment);
                                      });
+                                     // Add spacing after title
+                                     col.Item().Height((float)_theme.ChapterTitleBottomSpacing, Unit.Inch);
                                      break;
                                  case "Subtitle":
                                      isFirst = false;
-                                     col.Item().PaddingBottom((float)_theme.ChapterSubtitleBottomSpacing, Unit.Inch).Text(t =>
+                                     col.Item().Text(t =>
                                      {
                                          var s = t.Span(f.Text);
                                          s.FontFamily(_theme.ChapterSubtitleFont);
@@ -143,6 +154,8 @@ namespace PaperFinch.Components
                                          if (_theme.ChapterSubtitleItalic) s.Italic();
                                          ApplyAlignment(t, _theme.ChapterSubtitleAlignment);
                                      });
+                                     // Add spacing after subtitle
+                                     col.Item().Height((float)_theme.ChapterSubtitleBottomSpacing, Unit.Inch);
                                      break;
                                  case "Para":
                                  case "Chunk":
@@ -384,33 +397,46 @@ namespace PaperFinch.Components
 
                 margin.Column(col =>
                 {
-                    // Add page number header if enabled
-                    if (_showPageNumbers)
+                    // Check if this page will have a chapter title (don't show page number if so)
+                    bool hasTitle = fragments.Any(f => f.Type == "Title");
+
+                    // Add top offset if this is the first page of the chapter
+                    // Check the ORIGINAL State property, not the modified local state variable
+                    bool isFirstPage = hasTitle && State.ParagraphIndex == 0 && State.CharacterOffset == 0 && !State.TitleRendered;
+                    if (isFirstPage)
                     {
-                        var pageNumber = (int)context.PageNumber + _pageNumberOffset;
+                        col.Item().Height((float)_theme.ChapterHeadingTopOffset, Unit.Inch);
+                    }
+
+                    // Add page number header if enabled and no title on this page
+                    if (_showPageNumbers && !hasTitle)
+                    {
                         col.Item().Height(0.5f, Unit.Inch).AlignMiddle().Row(row =>
                         {
-                            // Even pages (left side): number on left (outside edge)
-                            if (pageNumber % 2 == 0)
+                            // Page number goes on the outside edge
+                            // Odd pages (right side): outside is on RIGHT
+                            // Even pages (left side): outside is on LEFT
+                            if (isOdd)
                             {
+                                // Right-hand page: number on right (outside edge)
+                                row.RelativeItem().AlignLeft().Text("");
+                                row.RelativeItem().AlignRight().Text(t =>
+                                {
+                                    var span = t.Span(displayPageNumber.ToString());
+                                    span.FontFamily(_theme.BodyFont);
+                                    span.FontSize(_theme.BodyFontSize);
+                                });
+                            }
+                            else
+                            {
+                                // Left-hand page: number on left (outside edge)
                                 row.RelativeItem().AlignLeft().Text(t =>
                                 {
-                                    var span = t.Span(pageNumber.ToString());
+                                    var span = t.Span(displayPageNumber.ToString());
                                     span.FontFamily(_theme.BodyFont);
                                     span.FontSize(_theme.BodyFontSize);
                                 });
                                 row.RelativeItem().AlignRight().Text("");
-                            }
-                            // Odd pages (right side): number on right (outside edge)
-                            else
-                            {
-                                row.RelativeItem().AlignLeft().Text("");
-                                row.RelativeItem().AlignRight().Text(t =>
-                                {
-                                    var span = t.Span(pageNumber.ToString());
-                                    span.FontFamily(_theme.BodyFont);
-                                    span.FontSize(_theme.BodyFontSize);
-                                });
                             }
                         });
                     }
@@ -421,14 +447,9 @@ namespace PaperFinch.Components
                         switch (f.Type)
                         {
                             case "Title":
-                                // Add top offset for chapter heading on first title
-                                if (isFirstFragment && !state.TitleRendered)
-                                {
-                                    col.Item().Height((float)_theme.ChapterHeadingTopOffset, Unit.Inch);
-                                }
                                 isFirstFragment = false;
 
-                                col.Item().PaddingBottom((float)_theme.ChapterTitleBottomSpacing, Unit.Inch).Text(t =>
+                                col.Item().Text(t =>
                                 {
                                     var s = t.Span(f.Text);
                                     s.FontFamily(_theme.ChapterTitleFont);
@@ -437,10 +458,12 @@ namespace PaperFinch.Components
                                     if (_theme.ChapterTitleItalic) s.Italic();
                                     ApplyAlignment(t, _theme.ChapterTitleAlignment);
                                 });
+                                // Add spacing after title
+                                col.Item().Height((float)_theme.ChapterTitleBottomSpacing, Unit.Inch);
                                 break;
                             case "Subtitle":
                                 isFirstFragment = false;
-                                col.Item().PaddingBottom((float)_theme.ChapterSubtitleBottomSpacing, Unit.Inch).Text(t =>
+                                col.Item().Text(t =>
                                 {
                                     var s = t.Span(f.Text);
                                     s.FontFamily(_theme.ChapterSubtitleFont);
@@ -449,6 +472,8 @@ namespace PaperFinch.Components
                                     if (_theme.ChapterSubtitleItalic) s.Italic();
                                     ApplyAlignment(t, _theme.ChapterSubtitleAlignment);
                                 });
+                                // Add spacing after subtitle
+                                col.Item().Height((float)_theme.ChapterSubtitleBottomSpacing, Unit.Inch);
                                 break;
                             case "Para":
                             case "Chunk":

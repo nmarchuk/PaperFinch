@@ -118,6 +118,7 @@
 
                                         <TextBlock Text="Bottom Spacing (in):"/>
                                         <NumericUpDown Value="{Binding Theme.ChapterTitleBottomSpacing, Mode=TwoWay}" Minimum="0" Maximum="2" Increment="0.05" FormatString="0.00" HorizontalAlignment="Stretch"/>
+                                        <TextBlock Text="Space between title and subtitle" FontSize="10" Foreground="Gray"/>
 
                                         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                                             <CheckBox Content="Bold" IsChecked="{Binding Theme.ChapterTitleBold, Mode=TwoWay}"/>
@@ -141,6 +142,7 @@
 
                                         <TextBlock Text="Bottom Spacing (in):"/>
                                         <NumericUpDown Value="{Binding Theme.ChapterSubtitleBottomSpacing, Mode=TwoWay}" Minimum="0" Maximum="2" Increment="0.05" FormatString="0.00" HorizontalAlignment="Stretch"/>
+                                        <TextBlock Text="Space between subtitle and body text" FontSize="10" Foreground="Gray"/>
 
                                         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                                             <CheckBox Content="Bold" IsChecked="{Binding Theme.ChapterSubtitleBold, Mode=TwoWay}"/>
