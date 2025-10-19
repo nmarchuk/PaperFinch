@@ -1,5 +1,8 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PaperFinch.Components;
+using PaperFinch.Models;
+using PaperFinch.Services;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -8,9 +11,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using PaperFinch.Models;
-using PaperFinch.Services;
-using PaperFinch.Components;
 
 namespace PaperFinch.ViewModels;
 
@@ -18,6 +18,7 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly ThemeService _themeService;
     private readonly FontService _fontService;
+    private readonly ProjectService _projectService;
 
     private string _title = "Chapter 1";
     private string _subtitle = "The Beginning";
@@ -28,27 +29,21 @@ public partial class MainWindowViewModel : ViewModelBase
     private byte[]? _currentPdfBytes;
     private PdfTheme? _selectedTheme;
     private List<PdfTheme> _themes = new();
+    private TrimSizeItem? _selectedTrimSize;
 
-    // Theme property holders for UI binding
-    private double _insideMargin = 0.875;
-    private double _outsideMargin = 0.5;
-    private double _topMargin = 0.75;
-    private double _bottomMargin = 0.75;
-    private TrimSizeItem _selectedTrimSize;
-    private string _bodyFont = "Times New Roman";
-    private int _bodyFontSize = 12;
-    private double _lineSpacing = 1.2;
-    private double _paragraphIndent = 0.3;
-    private string _chapterTitleFont = "Times New Roman";
-    private int _chapterTitleFontSize = 24;
-    private bool _chapterTitleBold = true;
-    private bool _chapterTitleItalic = false;
-    private TextAlignment _chapterTitleAlignment = TextAlignment.Center;
-    private string _chapterSubtitleFont = "Times New Roman";
-    private int _chapterSubtitleFontSize = 18;
-    private bool _chapterSubtitleBold = false;
-    private bool _chapterSubtitleItalic = true;
-    private TextAlignment _chapterSubtitleAlignment = TextAlignment.Center;
+    private ThemeViewModel _themeVM = new ThemeViewModel();
+    public ThemeViewModel Theme
+    {
+        get => _themeVM;
+        set => SetProperty(ref _themeVM, value);
+    }
+
+    private ProjectViewModel _project = new ProjectViewModel();
+    public ProjectViewModel Project
+    {
+        get => _project;
+        set => SetProperty(ref _project, value);
+    }
 
     public string Title
     {
@@ -104,118 +99,6 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    // Margin Properties
-    public double InsideMargin
-    {
-        get => _insideMargin;
-        set => SetProperty(ref _insideMargin, value);
-    }
-
-    public double OutsideMargin
-    {
-        get => _outsideMargin;
-        set => SetProperty(ref _outsideMargin, value);
-    }
-
-    public double TopMargin
-    {
-        get => _topMargin;
-        set => SetProperty(ref _topMargin, value);
-    }
-
-    public double BottomMargin
-    {
-        get => _bottomMargin;
-        set => SetProperty(ref _bottomMargin, value);
-    }
-
-    // Body Text Properties
-    public string BodyFont
-    {
-        get => _bodyFont;
-        set => SetProperty(ref _bodyFont, value);
-    }
-
-    public int BodyFontSize
-    {
-        get => _bodyFontSize;
-        set => SetProperty(ref _bodyFontSize, value);
-    }
-
-    public double LineSpacing
-    {
-        get => _lineSpacing;
-        set => SetProperty(ref _lineSpacing, value);
-    }
-
-    public double ParagraphIndent
-    {
-        get => _paragraphIndent;
-        set => SetProperty(ref _paragraphIndent, value);
-    }
-
-    // Chapter Title Properties
-    public string ChapterTitleFont
-    {
-        get => _chapterTitleFont;
-        set => SetProperty(ref _chapterTitleFont, value);
-    }
-
-    public int ChapterTitleFontSize
-    {
-        get => _chapterTitleFontSize;
-        set => SetProperty(ref _chapterTitleFontSize, value);
-    }
-
-    public bool ChapterTitleBold
-    {
-        get => _chapterTitleBold;
-        set => SetProperty(ref _chapterTitleBold, value);
-    }
-
-    public bool ChapterTitleItalic
-    {
-        get => _chapterTitleItalic;
-        set => SetProperty(ref _chapterTitleItalic, value);
-    }
-
-    public TextAlignment ChapterTitleAlignment
-    {
-        get => _chapterTitleAlignment;
-        set => SetProperty(ref _chapterTitleAlignment, value);
-    }
-
-    // Chapter Subtitle Properties
-    public string ChapterSubtitleFont
-    {
-        get => _chapterSubtitleFont;
-        set => SetProperty(ref _chapterSubtitleFont, value);
-    }
-
-    public int ChapterSubtitleFontSize
-    {
-        get => _chapterSubtitleFontSize;
-        set => SetProperty(ref _chapterSubtitleFontSize, value);
-    }
-
-    public bool ChapterSubtitleBold
-    {
-        get => _chapterSubtitleBold;
-        set => SetProperty(ref _chapterSubtitleBold, value);
-    }
-
-    public bool ChapterSubtitleItalic
-    {
-        get => _chapterSubtitleItalic;
-        set => SetProperty(ref _chapterSubtitleItalic, value);
-    }
-
-    public TextAlignment ChapterSubtitleAlignment
-    {
-        get => _chapterSubtitleAlignment;
-        set => SetProperty(ref _chapterSubtitleAlignment, value);
-    }
-
     public TrimSizeItem SelectedTrimSize
     {
         get => _selectedTrimSize;
@@ -241,6 +124,30 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _themes, value);
     }
 
+    // UI-facing project list (ComboBox ItemsSource)
+    private List<Models.Project> _projects = new();
+    public List<Models.Project> Projects
+    {
+        get => _projects;
+        set => SetProperty(ref _projects, value);
+    }
+
+    // Currently selected project
+    private Models.Project? _selectedProject;
+    public Models.Project? SelectedProject
+    {
+        get => _selectedProject;
+        set
+        {
+            if (SetProperty(ref _selectedProject, value) && value != null)
+            {
+                LoadProjectIntoUI(value);
+                SaveProjectCommand.NotifyCanExecuteChanged();
+                DeleteProjectCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
     public List<TrimSizeItem> TrimSizes { get; }
     public List<string> AvailableFonts { get; }
     public List<TextAlignment> TextAlignments { get; }
@@ -257,6 +164,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
         _themeService = new ThemeService();
         _fontService = FontService.Instance;
+        _projectService = new ProjectService();
+
+        Project = _project;
 
         // Populate trim sizes from enum
         TrimSizes = Enum.GetValues<TrimSize>()
@@ -274,6 +184,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Load themes asynchronously
         _ = LoadThemesAsync();
+
+        // Load projects asynchronously
+        _ = LoadProjectsListAsync();
     }
 
     private async Task LoadThemesAsync()
@@ -282,54 +195,46 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedTheme = Themes.FirstOrDefault();
     }
 
-    private void ApplyTheme(PdfTheme theme)
+    // Load projects list on startup
+    private async Task LoadProjectsListAsync()
     {
-        InsideMargin = theme.InsideMargin;
-        OutsideMargin = theme.OutsideMargin;
-        TopMargin = theme.TopMargin;
-        BottomMargin = theme.BottomMargin;
-        SelectedTrimSize = TrimSizes.First(ts => ts.Size == theme.TrimSize);
-        BodyFont = theme.BodyFont;
-        BodyFontSize = theme.BodyFontSize;
-        LineSpacing = theme.LineSpacing;
-        ParagraphIndent = theme.ParagraphIndent;
-        ChapterTitleFont = theme.ChapterTitleFont;
-        ChapterTitleFontSize = theme.ChapterTitleFontSize;
-        ChapterTitleBold = theme.ChapterTitleBold;
-        ChapterTitleItalic = theme.ChapterTitleItalic;
-        ChapterTitleAlignment = theme.ChapterTitleAlignment;
-        ChapterSubtitleFont = theme.ChapterSubtitleFont;
-        ChapterSubtitleFontSize = theme.ChapterSubtitleFontSize;
-        ChapterSubtitleBold = theme.ChapterSubtitleBold;
-        ChapterSubtitleItalic = theme.ChapterSubtitleItalic;
-        ChapterSubtitleAlignment = theme.ChapterSubtitleAlignment;
+        Projects = await _projectService.LoadAllProjectsAsync();
+        SelectedProject = Projects.FirstOrDefault();
+    }
+
+    // Apply a loaded project to the UI
+    private void LoadProjectIntoUI(Models.Project project)
+    {
+        try
+        {
+            // Apply project metadata
+            Project.ApplyFromModel(project);
+
+            // Apply theme
+            if (project.Theme != null)
+                ApplyTheme(project.Theme);
+
+            // Apply chapter content
+            Title = project.ChapterTitle ?? Title;
+            Subtitle = project.ChapterSubtitle ?? Subtitle;
+            Content = project.Content ?? Content;
+
+            PageInfo = $"Project loaded: {project.Name}";
+        }
+        catch (Exception ex)
+        {
+            PageInfo = $"Failed to load project: {ex.Message}";
+        }
+    }
+
+    public void ApplyTheme(PdfTheme theme)
+    {
+        Theme.ApplyFrom(theme, TrimSizes);
     }
 
     private PdfTheme CreateThemeFromCurrentSettings(string name)
     {
-        return new PdfTheme
-        {
-            Name = name,
-            TrimSize = SelectedTrimSize.Size,
-            InsideMargin = InsideMargin,
-            OutsideMargin = OutsideMargin,
-            TopMargin = TopMargin,
-            BottomMargin = BottomMargin,
-            BodyFont = BodyFont,
-            BodyFontSize = BodyFontSize,
-            LineSpacing = LineSpacing,
-            ParagraphIndent = ParagraphIndent,
-            ChapterTitleFont = ChapterTitleFont,
-            ChapterTitleFontSize = ChapterTitleFontSize,
-            ChapterTitleBold = ChapterTitleBold,
-            ChapterTitleItalic = ChapterTitleItalic,
-            ChapterTitleAlignment = ChapterTitleAlignment,
-            ChapterSubtitleFont = ChapterSubtitleFont,
-            ChapterSubtitleFontSize = ChapterSubtitleFontSize,
-            ChapterSubtitleBold = ChapterSubtitleBold,
-            ChapterSubtitleItalic = ChapterSubtitleItalic,
-            ChapterSubtitleAlignment = ChapterSubtitleAlignment
-        };
+        return Theme.ToPdfTheme(name);
     }
 
     [RelayCommand]
@@ -449,6 +354,101 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     private bool CanDeleteTheme() => SelectedTheme != null && SelectedTheme.Name != "Default";
+
+    [RelayCommand(CanExecute = nameof(CanSaveProject))]
+    private async Task SaveProjectAsync()
+    {
+        if (SelectedProject == null || SelectedProject.Name == "Default")
+        {
+            await SaveAsNewProjectAsync();
+            return;
+        }
+
+        try
+        {
+            var theme = CreateThemeFromCurrentSettings("ProjectTheme");
+            var updatedProject = Project.ToModel(SelectedProject.Name, theme, Title, Subtitle, Content);
+
+            await _projectService.SaveProjectAsync(updatedProject);
+
+            // Update the project in the list
+            var index = Projects.FindIndex(p => p.Name == SelectedProject.Name);
+            if (index >= 0)
+            {
+                Projects[index] = updatedProject;
+                SelectedProject = updatedProject;
+            }
+
+            PageInfo = $"Project '{SelectedProject.Name}' saved";
+        }
+        catch (Exception ex)
+        {
+            PageInfo = $"Save error: {ex.Message}";
+        }
+    }
+
+    private bool CanSaveProject() => SelectedProject != null && SelectedProject.Name != "Default";
+
+    [RelayCommand]
+    private async Task SaveAsNewProjectAsync()
+    {
+        if (PromptForTextAction == null)
+            return;
+
+        try
+        {
+            var projectName = await PromptForTextAction.Invoke("Save As New Project", "Enter project name:");
+
+            if (string.IsNullOrWhiteSpace(projectName))
+                return;
+
+            if (await _projectService.ProjectExistsAsync(projectName))
+            {
+                PageInfo = $"Project '{projectName}' already exists";
+                return;
+            }
+
+            var theme = CreateThemeFromCurrentSettings("ProjectTheme");
+            var newProject = Project.ToModel(projectName, theme, Title, Subtitle, Content);
+
+            await _projectService.SaveProjectAsync(newProject);
+
+            // Reload projects and select the new one
+            Projects = await _projectService.LoadAllProjectsAsync();
+            SelectedProject = Projects.FirstOrDefault(p => p.Name == projectName);
+
+            PageInfo = $"Project '{projectName}' created";
+        }
+        catch (Exception ex)
+        {
+            PageInfo = $"Save As error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteProject))]
+    private async Task DeleteProjectAsync()
+    {
+        if (SelectedProject == null || SelectedProject.Name == "Default")
+            return;
+
+        try
+        {
+            var projectName = SelectedProject.Name;
+            await _projectService.DeleteProjectAsync(projectName);
+
+            // Reload projects and select default
+            Projects = await _projectService.LoadAllProjectsAsync();
+            SelectedProject = Projects.FirstOrDefault();
+
+            PageInfo = $"Project '{projectName}' deleted";
+        }
+        catch (Exception ex)
+        {
+            PageInfo = $"Delete error: {ex.Message}";
+        }
+    }
+
+    private bool CanDeleteProject() => SelectedProject != null && SelectedProject.Name != "Default";
 
     [RelayCommand(CanExecute = nameof(CanExportPdf))]
     private async Task ExportPdf()
@@ -572,113 +572,6 @@ public partial class MainWindowViewModel : ViewModelBase
         }).GeneratePdf(stream);
 
         return stream.ToArray();
-    }
-
-    private void RenderPageContent(ColumnDescriptor col, string chapterTitle, string chapterSubtitle, string content, PdfTheme theme)
-    {
-        // Chapter Title
-        if (!string.IsNullOrWhiteSpace(chapterTitle))
-        {
-            col.Item().Text(text =>
-            {
-                var span = text.Span(chapterTitle);
-                span.FontFamily(theme.ChapterTitleFont);
-                span.FontSize(theme.ChapterTitleFontSize);
-                if (theme.ChapterTitleBold) span.SemiBold();
-                if (theme.ChapterTitleItalic) span.Italic();
-
-                ApplyAlignment(text, theme.ChapterTitleAlignment);
-            });
-            col.Item().PaddingBottom(10);
-        }
-
-        // Chapter Subtitle
-        if (!string.IsNullOrWhiteSpace(chapterSubtitle))
-        {
-            col.Item().Text(text =>
-            {
-                var span = text.Span(chapterSubtitle);
-                span.FontFamily(theme.ChapterSubtitleFont);
-                span.FontSize(theme.ChapterSubtitleFontSize);
-                if (theme.ChapterSubtitleBold) span.SemiBold();
-                if (theme.ChapterSubtitleItalic) span.Italic();
-
-                ApplyAlignment(text, theme.ChapterSubtitleAlignment);
-            });
-            col.Item().PaddingBottom(20);
-        }
-
-        // Body Content - split into paragraphs
-        var paragraphs = content.Split(new[] { "\n\n", "\r\n\r\n" }, StringSplitOptions.RemoveEmptyEntries);
-
-        for (int i = 0; i < paragraphs.Length; i++)
-        {
-            var para = paragraphs[i].Trim();
-            if (!string.IsNullOrWhiteSpace(para))
-            {
-                // First paragraph after chapter title doesn't get indented
-                // All subsequent paragraphs get a first-line indent
-                var shouldIndent = i > 0;
-
-                if (shouldIndent)
-                {
-                    // Use Row to create first-line indent
-                    col.Item().Row(row =>
-                    {
-                        // Empty space for indent
-                        row.ConstantItem((float)theme.ParagraphIndent, Unit.Inch);
-
-                        // Paragraph text
-                        row.RelativeItem().Text(text =>
-                        {
-                            text.Span(para).FontFamily(theme.BodyFont).FontSize(theme.BodyFontSize);
-                            text.Justify();
-                        });
-                    });
-                }
-                else
-                {
-                    // No indent for first paragraph
-                    col.Item().Text(text =>
-                    {
-                        text.Span(para).FontFamily(theme.BodyFont).FontSize(theme.BodyFontSize);
-                        text.Justify();
-                    });
-                }
-
-                if (i < paragraphs.Length - 1)
-                {
-                    col.Item().PaddingBottom(8);
-                }
-            }
-        }
-
-        // Footer with timestamp
-        col.Item().PaddingTop(20).Text(text =>
-        {
-            text.Span("Generated on: ");
-            text.Span(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")).Italic();
-            text.AlignCenter();
-        });
-    }
-
-    private void ApplyAlignment(TextDescriptor text, TextAlignment alignment)
-    {
-        switch (alignment)
-        {
-            case TextAlignment.Left:
-                text.AlignLeft();
-                break;
-            case TextAlignment.Center:
-                text.AlignCenter();
-                break;
-            case TextAlignment.Right:
-                text.AlignRight();
-                break;
-            case TextAlignment.Justify:
-                text.Justify();
-                break;
-        }
     }
 }
 
