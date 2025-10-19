@@ -19,6 +19,9 @@ namespace PaperFinch.ViewModels
         private int _bodyFontSize = 12;
         private double _lineSpacing = 1.2;
         private double _paragraphIndent = 0.3;
+        private double _chapterHeadingTopOffset = 2.0;
+        private double _chapterTitleBottomSpacing = 0.2;
+        private double _chapterSubtitleBottomSpacing = 0.5;
 
         private string _chapterTitleFont = "Times New Roman";
         private int _chapterTitleFontSize = 24;
@@ -85,6 +88,23 @@ namespace PaperFinch.ViewModels
         {
             get => _paragraphIndent;
             set => SetProperty(ref _paragraphIndent, value);
+        }
+        public double ChapterHeadingTopOffset
+        {
+            get => _chapterHeadingTopOffset;
+            set => SetProperty(ref _chapterHeadingTopOffset, value);
+        }
+
+        public double ChapterTitleBottomSpacing
+        {
+            get => _chapterTitleBottomSpacing;
+            set => SetProperty(ref _chapterTitleBottomSpacing, value);
+        }
+
+        public double ChapterSubtitleBottomSpacing
+        {
+            get => _chapterSubtitleBottomSpacing;
+            set => SetProperty(ref _chapterSubtitleBottomSpacing, value);
         }
 
         public string ChapterTitleFont
@@ -162,6 +182,9 @@ namespace PaperFinch.ViewModels
                 BodyFontSize = BodyFontSize,
                 LineSpacing = LineSpacing,
                 ParagraphIndent = ParagraphIndent,
+                ChapterHeadingTopOffset = ChapterHeadingTopOffset,
+                ChapterTitleBottomSpacing = ChapterTitleBottomSpacing,
+                ChapterSubtitleBottomSpacing = ChapterSubtitleBottomSpacing,
                 ChapterTitleFont = ChapterTitleFont,
                 ChapterTitleFontSize = ChapterTitleFontSize,
                 ChapterTitleBold = ChapterTitleBold,
@@ -189,6 +212,9 @@ namespace PaperFinch.ViewModels
             BodyFontSize = theme.BodyFontSize;
             LineSpacing = theme.LineSpacing;
             ParagraphIndent = theme.ParagraphIndent;
+            ChapterHeadingTopOffset = theme.ChapterHeadingTopOffset;
+            ChapterTitleBottomSpacing = theme.ChapterTitleBottomSpacing;
+            ChapterSubtitleBottomSpacing = theme.ChapterSubtitleBottomSpacing;
             ChapterTitleFont = theme.ChapterTitleFont;
             ChapterTitleFontSize = theme.ChapterTitleFontSize;
             ChapterTitleBold = theme.ChapterTitleBold;

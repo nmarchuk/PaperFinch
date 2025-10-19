@@ -19,6 +19,9 @@ namespace PaperFinch.Models
         public int BodyFontSize { get; set; } = 12;
         public double LineSpacing { get; set; } = 1.2;
         public double ParagraphIndent { get; set; } = 0.3;
+        public double ChapterHeadingTopOffset { get; set; } = 2.0; // in inches, about 1/3 down a typical page
+        public double ChapterTitleBottomSpacing { get; set; } = 0.2; // in inches
+        public double ChapterSubtitleBottomSpacing { get; set; } = 0.5; // in inches
 
         // Chapter Title Settings
         public string ChapterTitleFont { get; set; } = "Times New Roman";
@@ -48,6 +51,9 @@ namespace PaperFinch.Models
                 BodyFontSize = BodyFontSize,
                 LineSpacing = LineSpacing,
                 ParagraphIndent = ParagraphIndent,
+                ChapterHeadingTopOffset = ChapterHeadingTopOffset,
+                ChapterTitleBottomSpacing = ChapterTitleBottomSpacing,
+                ChapterSubtitleBottomSpacing = ChapterSubtitleBottomSpacing,
                 ChapterTitleFont = ChapterTitleFont,
                 ChapterTitleFontSize = ChapterTitleFontSize,
                 ChapterTitleBold = ChapterTitleBold,

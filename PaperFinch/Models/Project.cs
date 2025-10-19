@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace PaperFinch.Models
 {
@@ -17,13 +18,19 @@ namespace PaperFinch.Models
         public string BookPublisherName { get; set; } = string.Empty;
         public string BookPublisherLink { get; set; } = string.Empty;
 
-        // Document content
-        public string ChapterTitle { get; set; } = string.Empty;
-        public string ChapterSubtitle { get; set; } = string.Empty;
-        public string Content { get; set; } = string.Empty;
+        // Multi-chapter support
+        public List<Chapter> Chapters { get; set; } = new List<Chapter>();
 
         // Timestamps
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
         public DateTime ModifiedUtc { get; set; } = DateTime.UtcNow;
+    }
+
+    public class Chapter
+    {
+        public string Title { get; set; } = string.Empty;
+        public string Subtitle { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public bool ExcludeFromPageCount { get; set; } = false;
     }
 }

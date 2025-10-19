@@ -125,7 +125,15 @@ namespace PaperFinch.Services
             return string.Join("_", name.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
         }
 
-        public Project CreateProjectFromState(string name, PdfTheme theme, string bookTitle, string bookSubtitle, string bookAuthor, string bookPublisherName, string bookPublisherLink, string chapterTitle, string chapterSubtitle, string content)
+        public Project CreateProjectFromChapters(
+            string name,
+            PdfTheme theme,
+            string bookTitle,
+            string bookSubtitle,
+            string bookAuthor,
+            string bookPublisherName,
+            string bookPublisherLink,
+            List<Chapter> chapters)
         {
             var project = new Project
             {
@@ -136,12 +144,11 @@ namespace PaperFinch.Services
                 BookAuthor = string.IsNullOrWhiteSpace(bookAuthor) ? "Unknown Author" : bookAuthor,
                 BookPublisherName = bookPublisherName ?? string.Empty,
                 BookPublisherLink = bookPublisherLink ?? string.Empty,
-                ChapterTitle = chapterTitle ?? string.Empty,
-                ChapterSubtitle = chapterSubtitle ?? string.Empty,
-                Content = content ?? string.Empty,
+                Chapters = chapters ?? new List<Chapter>(),
                 CreatedUtc = DateTime.UtcNow,
                 ModifiedUtc = DateTime.UtcNow
             };
+
             return project;
         }
     }

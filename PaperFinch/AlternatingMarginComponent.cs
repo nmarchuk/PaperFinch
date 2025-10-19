@@ -4,6 +4,7 @@ using QuestPDF.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace PaperFinch.Components
@@ -22,12 +23,16 @@ namespace PaperFinch.Components
         private readonly string _chapterSubtitle;
         private readonly List<string> _paragraphs;
         private readonly Models.PdfTheme _theme;
+        private readonly int _pageNumberOffset;
+        private readonly bool _showPageNumbers;
 
-        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string content, Models.PdfTheme theme)
+        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string content, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false)
         {
             _chapterTitle = chapterTitle;
             _chapterSubtitle = chapterSubtitle;
             _theme = theme;
+            _pageNumberOffset = pageNumberOffset;
+            _showPageNumbers = showPageNumbers;
 
             // Prefer splitting on two-or-more newlines (paragraph separators).
             // If that produces a single paragraph but the input contains single newlines,
@@ -72,14 +77,21 @@ namespace PaperFinch.Components
 
         public DynamicComponentComposeResult Compose(DynamicContext context)
         {
-            var isOdd = context.PageNumber % 2 == 1;
             var state = State;
+
+            // Calculate the actual page number with offset
+            var pageNumber = (int)context.PageNumber + _pageNumberOffset;
+            var isOdd = pageNumber % 2 == 1;
 
             float availHeight = Convert.ToSingle(context.AvailableSize.Height);
             float availWidth = Convert.ToSingle(context.AvailableSize.Width);
 
-            float leftMargin = isOdd ? (float)_theme.OutsideMargin : (float)_theme.InsideMargin;
-            float rightMargin = isOdd ? (float)_theme.InsideMargin : (float)_theme.OutsideMargin;
+            // For book binding:
+            // Odd pages (1,3,5... right side of spread): spine on LEFT, outer edge on RIGHT
+            // Even pages (2,4,6... left side of spread): outer edge on LEFT, spine on RIGHT
+            // InsideMargin = spine (binding) margin, OutsideMargin = outer edge margin
+            float leftMargin = isOdd ? (float)_theme.InsideMargin : (float)_theme.OutsideMargin;
+            float rightMargin = isOdd ? (float)_theme.OutsideMargin : (float)_theme.InsideMargin;
 
             // Helper: build a column element from fragments and measure its total height (constrained width).
             float MeasureFragmentsHeight(IEnumerable<(string Type, string Text, bool Indent)> fragments)
@@ -91,12 +103,26 @@ namespace PaperFinch.Components
                      .PaddingRight(rightMargin, Unit.Inch)
                      .Column(col =>
                      {
+                         // Add space for page number header if enabled
+                         if (_showPageNumbers)
+                         {
+                             col.Item().Height(0.5f, Unit.Inch);
+                         }
+
+                         bool isFirst = true;
                          foreach (var f in fragments)
                          {
                              switch (f.Type)
                              {
                                  case "Title":
-                                     col.Item().PaddingBottom(10).Text(t =>
+                                     // Add top offset for chapter heading
+                                     if (isFirst && !state.TitleRendered)
+                                     {
+                                         col.Item().Height((float)_theme.ChapterHeadingTopOffset, Unit.Inch);
+                                     }
+                                     isFirst = false;
+
+                                     col.Item().PaddingBottom((float)_theme.ChapterTitleBottomSpacing, Unit.Inch).Text(t =>
                                      {
                                          var s = t.Span(f.Text);
                                          s.FontFamily(_theme.ChapterTitleFont);
@@ -107,7 +133,8 @@ namespace PaperFinch.Components
                                      });
                                      break;
                                  case "Subtitle":
-                                     col.Item().PaddingBottom(20).Text(t =>
+                                     isFirst = false;
+                                     col.Item().PaddingBottom((float)_theme.ChapterSubtitleBottomSpacing, Unit.Inch).Text(t =>
                                      {
                                          var s = t.Span(f.Text);
                                          s.FontFamily(_theme.ChapterSubtitleFont);
@@ -119,13 +146,11 @@ namespace PaperFinch.Components
                                      break;
                                  case "Para":
                                  case "Chunk":
+                                     isFirst = false;
                                      col.Item().PaddingBottom(8).Text(t =>
                                      {
-                                         // Apply first-line indent using non-breaking spaces for indented paragraphs
                                          if (f.Indent)
                                          {
-                                             // Use non-breaking spaces which won't be trimmed
-                                             // Calculate number needed based on indent size
                                              int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
                                              string indentSpaces = new string('\u00A0', numSpaces);
                                              t.Span(indentSpaces + f.Text).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize);
@@ -359,12 +384,51 @@ namespace PaperFinch.Components
 
                 margin.Column(col =>
                 {
+                    // Add page number header if enabled
+                    if (_showPageNumbers)
+                    {
+                        var pageNumber = (int)context.PageNumber + _pageNumberOffset;
+                        col.Item().Height(0.5f, Unit.Inch).AlignMiddle().Row(row =>
+                        {
+                            // Even pages (left side): number on left (outside edge)
+                            if (pageNumber % 2 == 0)
+                            {
+                                row.RelativeItem().AlignLeft().Text(t =>
+                                {
+                                    var span = t.Span(pageNumber.ToString());
+                                    span.FontFamily(_theme.BodyFont);
+                                    span.FontSize(_theme.BodyFontSize);
+                                });
+                                row.RelativeItem().AlignRight().Text("");
+                            }
+                            // Odd pages (right side): number on right (outside edge)
+                            else
+                            {
+                                row.RelativeItem().AlignLeft().Text("");
+                                row.RelativeItem().AlignRight().Text(t =>
+                                {
+                                    var span = t.Span(pageNumber.ToString());
+                                    span.FontFamily(_theme.BodyFont);
+                                    span.FontSize(_theme.BodyFontSize);
+                                });
+                            }
+                        });
+                    }
+
+                    bool isFirstFragment = true;
                     foreach (var f in fragments)
                     {
                         switch (f.Type)
                         {
                             case "Title":
-                                col.Item().PaddingBottom(10).Text(t =>
+                                // Add top offset for chapter heading on first title
+                                if (isFirstFragment && !state.TitleRendered)
+                                {
+                                    col.Item().Height((float)_theme.ChapterHeadingTopOffset, Unit.Inch);
+                                }
+                                isFirstFragment = false;
+
+                                col.Item().PaddingBottom((float)_theme.ChapterTitleBottomSpacing, Unit.Inch).Text(t =>
                                 {
                                     var s = t.Span(f.Text);
                                     s.FontFamily(_theme.ChapterTitleFont);
@@ -375,7 +439,8 @@ namespace PaperFinch.Components
                                 });
                                 break;
                             case "Subtitle":
-                                col.Item().PaddingBottom(20).Text(t =>
+                                isFirstFragment = false;
+                                col.Item().PaddingBottom((float)_theme.ChapterSubtitleBottomSpacing, Unit.Inch).Text(t =>
                                 {
                                     var s = t.Span(f.Text);
                                     s.FontFamily(_theme.ChapterSubtitleFont);
@@ -387,6 +452,7 @@ namespace PaperFinch.Components
                                 break;
                             case "Para":
                             case "Chunk":
+                                isFirstFragment = false;
                                 col.Item().PaddingBottom(8).Text(t =>
                                 {
                                     // Apply first-line indent using non-breaking spaces

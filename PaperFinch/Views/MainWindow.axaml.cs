@@ -93,4 +93,12 @@ public partial class MainWindow : Window
             vm.GeneratePdfCommand.Execute(null);
         }
     }
+
+    private void OnTabSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm && sender is TabControl tabControl)
+        {
+            vm.HandleTabChanged(tabControl.SelectedIndex);
+        }
+    }
 }

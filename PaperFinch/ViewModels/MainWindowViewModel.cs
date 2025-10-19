@@ -20,9 +20,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly FontService _fontService;
     private readonly ProjectService _projectService;
 
-    private string _title = "Chapter 1";
-    private string _subtitle = "The Beginning";
-    private string _content = "This is a sample paragraph with proper formatting. It demonstrates justified text with appropriate line spacing and paragraph indentation.\n\nThis is a second paragraph to show how indentation works across multiple paragraphs in a properly formatted novel.\n\nThis is a third paragraph to further demonstrate the formatting.";
     private string _pageInfo = "No PDF loaded";
     private int _currentPage = 0;
     private int _totalPages = 0;
@@ -30,6 +27,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private PdfTheme? _selectedTheme;
     private List<PdfTheme> _themes = new();
     private TrimSizeItem? _selectedTrimSize;
+
+    private Dictionary<ChapterViewModel, int> _chapterStartPages = new();
 
     private ThemeViewModel _themeVM = new ThemeViewModel();
     public ThemeViewModel Theme
@@ -43,24 +42,6 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         get => _project;
         set => SetProperty(ref _project, value);
-    }
-
-    public string Title
-    {
-        get => _title;
-        set => SetProperty(ref _title, value);
-    }
-
-    public string Subtitle
-    {
-        get => _subtitle;
-        set => SetProperty(ref _subtitle, value);
-    }
-
-    public string Content
-    {
-        get => _content;
-        set => SetProperty(ref _content, value);
     }
 
     public string PageInfo
@@ -158,6 +139,11 @@ public partial class MainWindowViewModel : ViewModelBase
     public Func<string, Task<string?>>? SaveFileDialogAction { get; set; }
     public Func<string, string, Task<string?>>? PromptForTextAction { get; set; }
 
+    // Callback for when tabs are switched - set by the View
+    public Action<int>? OnTabChanged { get; set; }
+
+    private bool _autoRegenerateEnabled = true;
+
     public MainWindowViewModel()
     {
         QuestPDF.Settings.License = LicenseType.Community;
@@ -167,6 +153,48 @@ public partial class MainWindowViewModel : ViewModelBase
         _projectService = new ProjectService();
 
         Project = _project;
+
+        // Wire up chapter selection change notification
+        Project.OnChapterSelectionChanged = () =>
+        {
+            RemoveChapterCommand.NotifyCanExecuteChanged();
+            MoveChapterUpCommand.NotifyCanExecuteChanged();
+            MoveChapterDownCommand.NotifyCanExecuteChanged();
+
+            // Jump to the selected chapter's page if PDF is loaded
+            if (_currentPdfBytes != null)
+            {
+                JumpToSelectedChapter();
+            }
+        };
+
+        // Subscribe to property changes on all chapters
+        Project.Chapters.CollectionChanged += (s, e) =>
+        {
+            if (e.NewItems != null)
+            {
+                foreach (ChapterViewModel chapter in e.NewItems)
+                {
+                    chapter.PropertyChanged += (cs, ce) => QueueAutoRegenerate();
+                }
+            }
+            QueueAutoRegenerate();
+        };
+
+        // Subscribe to existing chapter changes
+        foreach (var chapter in Project.Chapters)
+        {
+            chapter.PropertyChanged += (s, e) => QueueAutoRegenerate();
+        }
+
+        // Subscribe to project metadata changes
+        Project.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName != nameof(Project.SelectedChapter))
+            {
+                QueueAutoRegenerate();
+            }
+        };
 
         // Populate trim sizes from enum
         TrimSizes = Enum.GetValues<TrimSize>()
@@ -207,22 +235,25 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
-            // Apply project metadata
+            // Temporarily disable auto-regenerate to avoid multiple regenerations
+            _autoRegenerateEnabled = false;
+
+            // Apply project metadata and chapters
             Project.ApplyFromModel(project);
 
             // Apply theme
             if (project.Theme != null)
                 ApplyTheme(project.Theme);
 
-            // Apply chapter content
-            Title = project.ChapterTitle ?? Title;
-            Subtitle = project.ChapterSubtitle ?? Subtitle;
-            Content = project.Content ?? Content;
-
             PageInfo = $"Project loaded: {project.Name}";
+
+            // Re-enable auto-regenerate and trigger a regeneration
+            _autoRegenerateEnabled = true;
+            _ = GeneratePdf();
         }
         catch (Exception ex)
         {
+            _autoRegenerateEnabled = true;
             PageInfo = $"Failed to load project: {ex.Message}";
         }
     }
@@ -242,12 +273,18 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
+            if (Project.Chapters.Count == 0)
+            {
+                PageInfo = "No chapters to generate";
+                return;
+            }
+
             PageInfo = "Generating PDF...";
 
             var theme = CreateThemeFromCurrentSettings("Current");
 
-            // Generate the PDF on a thread-pool thread so UI stays responsive
-            byte[] pdfBytes = await Task.Run(() => GeneratePdfDocument(Title, Subtitle, Content, theme));
+            // Generate the PDF with all chapters on a thread-pool thread so UI stays responsive
+            byte[] pdfBytes = await Task.Run(() => GenerateMultiChapterPdfDocument(Project.Chapters, theme));
 
             if (LoadPdfAction == null)
             {
@@ -258,7 +295,18 @@ public partial class MainWindowViewModel : ViewModelBase
             // Invoke the view's loader
             LoadPdfAction.Invoke(pdfBytes);
             _currentPdfBytes = pdfBytes;
-            CurrentPage = 1;
+
+            // Jump to the selected chapter's starting page, or page 1 if no chapter selected
+            JumpToSelectedChapter();
+
+            // Ensure CurrentPage is at least 1 if not already set by JumpToSelectedChapter
+            if (CurrentPage == 0 && TotalPages > 0)
+            {
+                CurrentPage = 1;
+                RenderPageAction?.Invoke(0);
+                UpdatePageInfo();
+            }
+
             ExportPdfCommand.NotifyCanExecuteChanged();
         }
         catch (Exception ex)
@@ -267,7 +315,98 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanSaveTheme))]
+    [RelayCommand]
+    private void AddChapter()
+    {
+        var newChapterNumber = Project.Chapters.Count + 1;
+        var newChapter = new ChapterViewModel
+        {
+            Title = $"Chapter {newChapterNumber}",
+            Subtitle = string.Empty,
+            Content = string.Empty
+        };
+
+        Project.Chapters.Add(newChapter);
+        Project.SelectedChapter = newChapter;
+
+        PageInfo = $"Added Chapter {newChapterNumber}";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRemoveChapter))]
+    private void RemoveChapter()
+    {
+        if (Project.SelectedChapter == null)
+            return;
+
+        var index = Project.Chapters.IndexOf(Project.SelectedChapter);
+        Project.Chapters.Remove(Project.SelectedChapter);
+
+        // Select the previous chapter, or the first one if we removed the first
+        if (Project.Chapters.Count > 0)
+        {
+            var newIndex = Math.Max(0, index - 1);
+            Project.SelectedChapter = Project.Chapters[newIndex];
+        }
+        else
+        {
+            Project.SelectedChapter = null;
+        }
+
+        PageInfo = $"Chapter removed. {Project.Chapters.Count} chapter(s) remaining";
+        RemoveChapterCommand.NotifyCanExecuteChanged();
+        MoveChapterUpCommand.NotifyCanExecuteChanged();
+        MoveChapterDownCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanRemoveChapter() => Project.SelectedChapter != null && Project.Chapters.Count > 1;
+
+    [RelayCommand(CanExecute = nameof(CanMoveChapterUp))]
+    private void MoveChapterUp()
+    {
+        if (Project.SelectedChapter == null)
+            return;
+
+        var chapter = Project.SelectedChapter;
+        var index = Project.Chapters.IndexOf(chapter);
+        if (index > 0)
+        {
+            Project.Chapters.Move(index, index - 1);
+            Project.SelectedChapter = chapter; // Re-select to maintain selection
+            PageInfo = "Chapter moved up";
+        }
+    }
+
+    private bool CanMoveChapterUp()
+    {
+        if (Project.SelectedChapter == null)
+            return false;
+        return Project.Chapters.IndexOf(Project.SelectedChapter) > 0;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanMoveChapterDown))]
+    private void MoveChapterDown()
+    {
+        if (Project.SelectedChapter == null)
+            return;
+
+        var chapter = Project.SelectedChapter;
+        var index = Project.Chapters.IndexOf(chapter);
+        if (index < Project.Chapters.Count - 1)
+        {
+            Project.Chapters.Move(index, index + 1);
+            Project.SelectedChapter = chapter; // Re-select to maintain selection
+            PageInfo = "Chapter moved down";
+        }
+    }
+
+    private bool CanMoveChapterDown()
+    {
+        if (Project.SelectedChapter == null)
+            return false;
+        return Project.Chapters.IndexOf(Project.SelectedChapter) < Project.Chapters.Count - 1;
+    }
+
+    [RelayCommand]
     private async Task SaveTheme()
     {
         if (SelectedTheme == null || SelectedTheme.Name == "Default")
@@ -367,7 +506,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var theme = CreateThemeFromCurrentSettings("ProjectTheme");
-            var updatedProject = Project.ToModel(SelectedProject.Name, theme, Title, Subtitle, Content);
+            var updatedProject = Project.ToModel(SelectedProject.Name, theme);
 
             await _projectService.SaveProjectAsync(updatedProject);
 
@@ -409,7 +548,7 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             var theme = CreateThemeFromCurrentSettings("ProjectTheme");
-            var newProject = Project.ToModel(projectName, theme, Title, Subtitle, Content);
+            var newProject = Project.ToModel(projectName, theme);
 
             await _projectService.SaveProjectAsync(newProject);
 
@@ -458,7 +597,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            string defaultFileName = string.IsNullOrWhiteSpace(Title) ? "document.pdf" : $"{Title}.pdf";
+            string defaultFileName = Project.SelectedChapter != null && !string.IsNullOrWhiteSpace(Project.SelectedChapter.Title)
+                ? $"{Project.SelectedChapter.Title}.pdf"
+                : "document.pdf";
             string? filePath = await SaveFileDialogAction.Invoke(defaultFileName);
 
             if (!string.IsNullOrEmpty(filePath))
@@ -514,7 +655,67 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void UpdatePageInfo()
     {
-        PageInfo = TotalPages > 0 ? $"Page {CurrentPage} of {TotalPages}" : "No PDF loaded";
+        if (TotalPages > 0)
+        {
+            var chapterInfo = GetCurrentChapterInfo();
+            PageInfo = chapterInfo != null
+                ? $"Page {CurrentPage} of {TotalPages} - {chapterInfo}"
+                : $"Page {CurrentPage} of {TotalPages}";
+        }
+        else
+        {
+            PageInfo = "No PDF loaded";
+        }
+    }
+
+    private string? GetCurrentChapterInfo()
+    {
+        foreach (var kvp in _chapterStartPages.OrderByDescending(x => x.Value))
+        {
+            if (CurrentPage >= kvp.Value)
+            {
+                return kvp.Key.Title;
+            }
+        }
+        return null;
+    }
+
+    private void JumpToSelectedChapter()
+    {
+        if (Project.SelectedChapter != null && _chapterStartPages.ContainsKey(Project.SelectedChapter))
+        {
+            CurrentPage = _chapterStartPages[Project.SelectedChapter];
+            RenderPageAction?.Invoke(CurrentPage - 1);
+            UpdatePageInfo();
+        }
+    }
+
+    private System.Timers.Timer? _regenerateTimer;
+
+    private void QueueAutoRegenerate()
+    {
+        if (!_autoRegenerateEnabled)
+            return;
+
+        // Debounce rapid changes - wait 500ms after last change before regenerating
+        _regenerateTimer?.Stop();
+        _regenerateTimer = new System.Timers.Timer(500);
+        _regenerateTimer.Elapsed += (s, e) =>
+        {
+            _regenerateTimer.Stop();
+            _ = GeneratePdf();
+        };
+        _regenerateTimer.AutoReset = false;
+        _regenerateTimer.Start();
+    }
+
+    public void HandleTabChanged(int tabIndex)
+    {
+        // Regenerate when switching to the Preview tab (assumed to be index 2)
+        if (tabIndex == 2 && _autoRegenerateEnabled)
+        {
+            _ = GeneratePdf();
+        }
     }
 
     public void UpdatePageCount(int count)
@@ -529,6 +730,70 @@ public partial class MainWindowViewModel : ViewModelBase
         GoToLastPageCommand.NotifyCanExecuteChanged();
     }
 
+    private byte[] GenerateMultiChapterPdfDocument(IEnumerable<ChapterViewModel> chapters, PdfTheme theme)
+    {
+        using var stream = new MemoryStream();
+        var (width, height) = theme.TrimSize.GetDimensions();
+        _chapterStartPages.Clear();
+
+        var chapterList = chapters.ToList();
+
+        Document.Create(container =>
+        {
+            // Create a section for numbered pages (all included chapters)
+            container.Page(page =>
+            {
+                page.Size(width, height, Unit.Inch);
+                page.PageColor(Colors.White);
+                page.MarginTop((float)theme.TopMargin, Unit.Inch);
+                page.MarginBottom((float)theme.BottomMargin, Unit.Inch);
+
+                page.DefaultTextStyle(x => x
+                    .FontFamily(theme.BodyFont)
+                    .FontSize(theme.BodyFontSize)
+                    .LineHeight((float)theme.LineSpacing));
+
+                page.Content().Column(col =>
+                {
+                    bool isFirstChapter = true;
+
+                    // Count how many chapters at the beginning are excluded
+                    int excludedChapterCount = 0;
+                    foreach (var ch in chapterList)
+                    {
+                        if (ch.ExcludeFromPageCount)
+                            excludedChapterCount++;
+                        else
+                            break;
+                    }
+
+                    foreach (var chapter in chapterList)
+                    {
+                        // Add page break before each chapter except the first
+                        if (!isFirstChapter)
+                        {
+                            col.Item().PageBreak();
+                        }
+                        isFirstChapter = false;
+
+                        // Determine if page numbers should be shown for this chapter
+                        bool showPageNumbers = !chapter.ExcludeFromPageCount;
+
+                        col.Item().Dynamic(new AlternatingMarginContent(
+                            chapter.Title,
+                            chapter.Subtitle,
+                            chapter.Content,
+                            theme,
+                            -excludedChapterCount, // Pass offset to subtract from page numbers
+                            showPageNumbers
+                        ));
+                    }
+                });
+            });
+        }).GeneratePdf(stream);
+
+        return stream.ToArray();
+    }
     private byte[] GeneratePdfDocument(string chapterTitle, string chapterSubtitle, string content, PdfTheme theme)
     {
         using var stream = new MemoryStream();

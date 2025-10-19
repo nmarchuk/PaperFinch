@@ -1,6 +1,9 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using PaperFinch.Models;
 using PaperFinch.Services;
+using System;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace PaperFinch.ViewModels
@@ -13,6 +16,10 @@ namespace PaperFinch.ViewModels
         private string _bookAuthor = "Unknown Author";
         private string _bookPublisherName = string.Empty;
         private string _bookPublisherLink = string.Empty;
+        private ChapterViewModel? _selectedChapter;
+
+        // Action to notify MainWindowViewModel when chapter selection changes
+        public Action? OnChapterSelectionChanged { get; set; }
 
         public string BookTitle
         {
@@ -44,26 +51,71 @@ namespace PaperFinch.ViewModels
             set => SetProperty(ref _bookPublisherLink, value);
         }
 
-        // Apply values from a loaded Project model into this VM
+        public ObservableCollection<ChapterViewModel> Chapters { get; } = new ObservableCollection<ChapterViewModel>();
+
+        public ChapterViewModel? SelectedChapter
+        {
+            get => _selectedChapter;
+            set
+            {
+                if (SetProperty(ref _selectedChapter, value))
+                {
+                    OnChapterSelectionChanged?.Invoke();
+                }
+            }
+        }
+
+        public ProjectViewModel()
+        {
+            // Initialize with one default chapter
+            var defaultChapter = new ChapterViewModel
+            {
+                Title = "Chapter 1",
+                Subtitle = string.Empty,
+                Content = string.Empty
+            };
+            Chapters.Add(defaultChapter);
+            SelectedChapter = defaultChapter;
+        }
+
         public void ApplyFromModel(Project project)
         {
             if (project == null) return;
+
             BookTitle = string.IsNullOrWhiteSpace(project.BookTitle) ? BookTitle : project.BookTitle;
             BookSubtitle = project.BookSubtitle ?? BookSubtitle;
             BookAuthor = string.IsNullOrWhiteSpace(project.BookAuthor) ? BookAuthor : project.BookAuthor;
             BookPublisherName = project.BookPublisherName ?? BookPublisherName;
             BookPublisherLink = project.BookPublisherLink ?? BookPublisherLink;
+
+            // Load chapters
+            Chapters.Clear();
+            foreach (var chapter in project.Chapters)
+            {
+                Chapters.Add(new ChapterViewModel
+                {
+                    Title = chapter.Title,
+                    Subtitle = chapter.Subtitle,
+                    Content = chapter.Content,
+                    ExcludeFromPageCount = chapter.ExcludeFromPageCount
+                });
+            }
+
+            // Select first chapter if available
+            SelectedChapter = Chapters.FirstOrDefault();
         }
 
-        // Build a Project model from current VM state plus caller-supplied pieces
-        public Project ToModel(
-            string name,
-            PdfTheme theme,
-            string chapterTitle,
-            string chapterSubtitle,
-            string content)
+        public Project ToModel(string name, PdfTheme theme)
         {
-            return _projectService.CreateProjectFromState(
+            var chapters = Chapters.Select(c => new Chapter
+            {
+                Title = c.Title,
+                Subtitle = c.Subtitle,
+                Content = c.Content,
+                ExcludeFromPageCount = c.ExcludeFromPageCount
+            }).ToList();
+
+            return _projectService.CreateProjectFromChapters(
                 name ?? BookTitle,
                 theme,
                 BookTitle,
@@ -71,15 +123,12 @@ namespace PaperFinch.ViewModels
                 BookAuthor,
                 BookPublisherName,
                 BookPublisherLink,
-                chapterTitle,
-                chapterSubtitle,
-                content);
+                chapters);
         }
 
-        // Save helpers that encapsulate ProjectService usage so callers stay compact.
-        public Task SaveToFileAsync(PdfTheme theme, string chapterTitle, string chapterSubtitle, string content, string? name = null)
+        public Task SaveToFileAsync(PdfTheme theme, string? name = null)
         {
-            var project = ToModel(name ?? BookTitle, theme, chapterTitle, chapterSubtitle, content);
+            var project = ToModel(name ?? BookTitle, theme);
             return _projectService.SaveProjectAsync(project);
         }
 
@@ -94,5 +143,37 @@ namespace PaperFinch.ViewModels
         }
 
         public Task DeleteFileAsync(string projectName) => _projectService.DeleteProjectAsync(projectName);
+    }
+
+    public class ChapterViewModel : ObservableObject
+    {
+        private string _title = string.Empty;
+        private string _subtitle = string.Empty;
+        private string _content = string.Empty;
+        private bool _excludeFromPageCount = false;
+
+        public string Title
+        {
+            get => _title;
+            set => SetProperty(ref _title, value);
+        }
+
+        public string Subtitle
+        {
+            get => _subtitle;
+            set => SetProperty(ref _subtitle, value);
+        }
+
+        public string Content
+        {
+            get => _content;
+            set => SetProperty(ref _content, value);
+        }
+
+        public bool ExcludeFromPageCount
+        {
+            get => _excludeFromPageCount;
+            set => SetProperty(ref _excludeFromPageCount, value);
+        }
     }
 }
