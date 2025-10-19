@@ -88,7 +88,7 @@
                                     <NumericUpDown Value="{Binding Theme.BodyFontSize, Mode=TwoWay}" Minimum="6" Maximum="72" Increment="1" FormatString="0" HorizontalAlignment="Stretch"/>
 
                                     <TextBlock Text="Line Spacing:"/>
-                                    <NumericUpDown Value="{Binding Theme.LineSpacing, Mode=TwoWay}" Minimum="1.0" Maximum="3.0" Increment="0.1" FormatString="0.0" HorizontalAlignment="Stretch"/>
+                                    <NumericUpDown Value="{Binding Theme.LineSpacing, Mode=TwoWay}" Minimum="1.0" Maximum="2.0" Increment="0.1" FormatString="0.0" HorizontalAlignment="Stretch"/>
 
                                     <TextBlock Text="Paragraph Indent (in):"/>
                                     <NumericUpDown Value="{Binding Theme.ParagraphIndent, Mode=TwoWay}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" HorizontalAlignment="Stretch"/>
@@ -156,6 +156,22 @@
 
                             <TabItem Header="Headers">
                                 <StackPanel Margin="5" Spacing="12">
+                                    <TextBlock Text="Page Numbers" FontWeight="Bold" FontSize="14"/>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Page Number Position:"/>
+                                        <ComboBox ItemsSource="{Binding PageNumberPositions}"
+                                                  SelectedItem="{Binding Theme.SelectedPageNumberPosition, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding DisplayName}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+
+                                    <Separator Margin="0,10"/>
+
                                     <TextBlock Text="Running Headers (Page Top)" FontWeight="Bold" FontSize="14"/>
                                     <TextBlock Text="Configure what appears in the center of the page header" FontSize="11" Foreground="Gray" TextWrapping="Wrap"/>
 
@@ -289,18 +305,65 @@
                 <!-- PREVIEW TAB -->
                 <TabItem Header="Preview">
                     <Grid RowDefinitions="*,Auto">
-                        <Border Grid.Row="0" Background="LightGray" Padding="10">
-                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                                <controls:PdfPreviewControl x:Name="PdfPreview" MaxWidth="700" MaxHeight="900"/>
-                            </ScrollViewer>
-                        </Border>
+                        <!-- PDF Preview with loading overlay -->
+                        <Grid Grid.Row="0">
+                            <Border Background="LightGray" Padding="10">
+                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                    <controls:PdfPreviewControl x:Name="PdfPreview" MaxWidth="700" MaxHeight="900"/>
+                                </ScrollViewer>
+                            </Border>
 
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Margin="0,10,0,0">
-                            <Button Content="&lt;&lt; First" Command="{Binding GoToFirstPageCommand}" Width="80"/>
-                            <Button Content="&lt; Previous" Command="{Binding GoToPreviousPageCommand}" Width="90"/>
-                            <Button Content="Next &gt;" Command="{Binding GoToNextPageCommand}" Width="90"/>
-                            <Button Content="Last &gt;&gt;" Command="{Binding GoToLastPageCommand}" Width="80"/>
-                        </StackPanel>
+                            <!-- Loading overlay -->
+                            <Border Background="#CC000000"
+                                    IsVisible="{Binding IsGenerating}">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10">
+                                    <TextBlock Text="Generating PDF..."
+                                               FontSize="18"
+                                               FontWeight="Bold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Please wait..."
+                                               FontSize="14"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Navigation buttons and zoom slider at bottom -->
+                        <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="*,Auto,*">
+                            <!-- Left spacer -->
+                            <Panel Grid.Column="0"/>
+
+                            <!-- Center: Navigation buttons -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+                                <Button Content="&lt;&lt; First" Command="{Binding GoToFirstPageCommand}" Width="80"/>
+                                <Button Content="&lt; Previous" Command="{Binding GoToPreviousPageCommand}" Width="90"/>
+                                <Button Content="Next &gt;" Command="{Binding GoToNextPageCommand}" Width="90"/>
+                                <Button Content="Last &gt;&gt;" Command="{Binding GoToLastPageCommand}" Width="80"/>
+                            </StackPanel>
+
+                            <!-- Right: Zoom slider -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="20,0,0,0">
+                                <TextBlock Text="Zoom:" VerticalAlignment="Center"/>
+                                <Slider Value="{Binding ZoomLevel, Mode=TwoWay}"
+                                        Minimum="0.35"
+                                        Maximum="1.05"
+                                        Width="150"
+                                        VerticalAlignment="Center"
+                                        TickFrequency="0.05"
+                                        IsSnapToTickEnabled="True"/>
+                                <TextBlock VerticalAlignment="Center" Width="50">
+                                    <TextBlock.Text>
+                                        <Binding Path="ZoomLevel">
+                                            <Binding.Converter>
+                                                <vm:ZoomToPercentageConverter/>
+                                            </Binding.Converter>
+                                        </Binding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </TabItem>
             </TabControl>

@@ -17,7 +17,7 @@ namespace PaperFinch.ViewModels
 
         private string _bodyFont = "Times New Roman";
         private int _bodyFontSize = 12;
-        private double _lineSpacing = 1.2;
+        private double _lineSpacing = 1.6;
         private double _paragraphIndent = 0.3;
         private double _chapterHeadingTopOffset = 2.0;
         private double _chapterTitleBottomSpacing = 0.2;
@@ -39,6 +39,7 @@ namespace PaperFinch.ViewModels
         private bool _leftPageHeaderCapitalize = true;
         private HeaderContentType _rightPageHeaderContent = HeaderContentType.Title;
         private bool _rightPageHeaderCapitalize = true;
+        private PageNumberPositionItem _selectedPageNumberPosition = new PageNumberPositionItem { Position = PageNumberPosition.Top, DisplayName = "Top" };
 
         public double InsideMargin
         {
@@ -196,6 +197,12 @@ namespace PaperFinch.ViewModels
             set => SetProperty(ref _rightPageHeaderCapitalize, value);
         }
 
+        public PageNumberPositionItem SelectedPageNumberPosition
+        {
+            get => _selectedPageNumberPosition;
+            set => SetProperty(ref _selectedPageNumberPosition, value);
+        }
+
         // Create a PdfTheme instance from current ThemeViewModel values
         public PdfTheme ToPdfTheme(string name)
         {
@@ -227,13 +234,14 @@ namespace PaperFinch.ViewModels
                 LeftPageHeaderContent = LeftPageHeaderContent,
                 LeftPageHeaderCapitalize = LeftPageHeaderCapitalize,
                 RightPageHeaderContent = RightPageHeaderContent,
-                RightPageHeaderCapitalize = RightPageHeaderCapitalize
+                RightPageHeaderCapitalize = RightPageHeaderCapitalize,
+                PageNumberPosition = SelectedPageNumberPosition?.Position ?? PageNumberPosition.Top
             };
         }
 
-        // Apply a PdfTheme into this view model. If a TrimSizeItem collection is provided,
-        // try to select the matching TrimSizeItem; otherwise create a simple TrimSizeItem.
-        public void ApplyFrom(PdfTheme theme, IEnumerable<TrimSizeItem>? availableTrimSizes = null)
+        // Apply a PdfTheme into this view model. If a TrimSizeItem/PageNumberPositionItem collection is provided,
+        // try to select the matching item; otherwise create a simple item.
+        public void ApplyFrom(PdfTheme theme, IEnumerable<TrimSizeItem>? availableTrimSizes = null, IEnumerable<PageNumberPositionItem>? availablePageNumberPositions = null)
         {
             if (theme == null) return;
 
@@ -262,6 +270,17 @@ namespace PaperFinch.ViewModels
             LeftPageHeaderCapitalize = theme.LeftPageHeaderCapitalize;
             RightPageHeaderContent = theme.RightPageHeaderContent;
             RightPageHeaderCapitalize = theme.RightPageHeaderCapitalize;
+
+            if (availablePageNumberPositions != null)
+            {
+                var match = availablePageNumberPositions.FirstOrDefault(p => p.Position == theme.PageNumberPosition);
+                if (match != null) SelectedPageNumberPosition = match;
+                else SelectedPageNumberPosition = new PageNumberPositionItem { Position = theme.PageNumberPosition, DisplayName = theme.PageNumberPosition.GetDescription() };
+            }
+            else
+            {
+                SelectedPageNumberPosition = new PageNumberPositionItem { Position = theme.PageNumberPosition, DisplayName = theme.PageNumberPosition.GetDescription() };
+            }
 
             if (availableTrimSizes != null)
             {

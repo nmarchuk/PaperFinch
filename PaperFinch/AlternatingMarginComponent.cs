@@ -27,8 +27,10 @@ namespace PaperFinch.Components
         private readonly bool _showPageNumbers;
         private readonly string _bookTitle;
         private readonly string _bookAuthor;
+        private readonly Action<int>? _onFirstPageCallback;
+        private bool _firstPageReported = false;
 
-        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string content, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false, string bookTitle = "", string bookAuthor = "")
+        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string content, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false, string bookTitle = "", string bookAuthor = "", Action<int>? onFirstPage = null)
         {
             _chapterTitle = chapterTitle;
             _chapterSubtitle = chapterSubtitle;
@@ -37,6 +39,7 @@ namespace PaperFinch.Components
             _showPageNumbers = showPageNumbers;
             _bookTitle = bookTitle;
             _bookAuthor = bookAuthor;
+            _onFirstPageCallback = onFirstPage;
 
             // Prefer splitting on two-or-more newlines (paragraph separators).
             // If that produces a single paragraph but the input contains single newlines,
@@ -83,6 +86,13 @@ namespace PaperFinch.Components
         {
             var state = State;
 
+            // Report the first page number back to the caller (only once)
+            if (!_firstPageReported && _onFirstPageCallback != null)
+            {
+                _onFirstPageCallback((int)context.PageNumber);
+                _firstPageReported = true;
+            }
+
             // For margins, use the QuestPDF page number (not offset) to determine odd/even
             // This ensures first page is always right-hand (odd)
             var isOdd = context.PageNumber % 2 == 1;
@@ -92,6 +102,19 @@ namespace PaperFinch.Components
 
             float availHeight = Convert.ToSingle(context.AvailableSize.Height);
             float availWidth = Convert.ToSingle(context.AvailableSize.Width);
+
+            // For bottom page numbers: reduce available height so content stops before footer
+            // Footer is ~2 lines tall (0.3 inches = ~22 points)
+            bool needsBottomFooter = _showPageNumbers &&
+                (_theme.PageNumberPosition == Models.PageNumberPosition.Bottom ||
+                 _theme.PageNumberPosition == Models.PageNumberPosition.BottomCentered);
+
+            bool willHaveTitle = !state.TitleRendered && !string.IsNullOrWhiteSpace(_chapterTitle);
+
+            if (needsBottomFooter && !willHaveTitle)
+            {
+                availHeight -= 22f; // ~0.3 inches in points
+            }
 
             // For book binding:
             // Odd pages (1,3,5... right side of spread): spine on LEFT, outer edge on RIGHT
@@ -121,10 +144,13 @@ namespace PaperFinch.Components
                              col.Item().Height((float)_theme.ChapterHeadingTopOffset, Unit.Inch);
                          }
 
-                         // Add space for page number header if enabled (and no title)
+                         // Add space for page number header/footer if enabled (and no title)
                          if (_showPageNumbers && !hasTitle)
                          {
-                             col.Item().Height(0.5f, Unit.Inch);
+                             if (_theme.PageNumberPosition == Models.PageNumberPosition.Top)
+                             {
+                                 col.Item().Height(0.5f, Unit.Inch);
+                             }
                          }
 
                          bool isFirst = true;
@@ -396,131 +422,62 @@ namespace PaperFinch.Components
             // Final render (single CreateElement)
             var content = context.CreateElement(element =>
             {
-                IContainer margin = element;
-                margin = margin.PaddingLeft(leftMargin, Unit.Inch).PaddingRight(rightMargin, Unit.Inch);
+                // Check if we need bottom page numbers (to use layers for absolute positioning)
+                // Always use layers when bottom position is selected (unless it's a title page)
+                bool hasTitle = fragments.Any(f => f.Type == "Title");
+                bool needsBottomPageNumber = _showPageNumbers &&
+                    !hasTitle &&
+                    (_theme.PageNumberPosition == Models.PageNumberPosition.Bottom ||
+                     _theme.PageNumberPosition == Models.PageNumberPosition.BottomCentered);
 
-                margin.Column(col =>
+                IContainer container = element;
+
+                if (needsBottomPageNumber)
                 {
-                    // Check if this page will have a chapter title (don't show page number if so)
-                    bool hasTitle = fragments.Any(f => f.Type == "Title");
-
-                    // Add top offset if this is the first page of the chapter
-                    // Check the ORIGINAL State property, not the modified local state variable
-                    bool isFirstPage = hasTitle && State.ParagraphIndex == 0 && State.CharacterOffset == 0 && !State.TitleRendered;
-                    if (isFirstPage)
+                    // Use layers: primary layer MUST extend to full page height
+                    // to ensure footer layer's AlignBottom works correctly
+                    container.Layers(layers =>
                     {
-                        col.Item().Height((float)_theme.ChapterHeadingTopOffset, Unit.Inch);
-                    }
-
-                    // Add page number header if enabled and no title on this page
-                    if (_showPageNumbers && !hasTitle)
-                    {
-                        col.Item().Height(0.5f, Unit.Inch).AlignMiddle().Row(row =>
-                        {
-                            // Page number goes on the outside edge
-                            // Header content goes in the center
-                            // Odd pages (right side): outside is on RIGHT
-                            // Even pages (left side): outside is on LEFT
-                            if (isOdd)
+                        // Main content layer - extend to full height with MinHeight
+                        layers.PrimaryLayer()
+                            .MinHeight(availHeight, Unit.Point)
+                            .PaddingLeft(leftMargin, Unit.Inch)
+                            .PaddingRight(rightMargin, Unit.Inch)
+                            .Column(col =>
                             {
-                                // Right-hand page: number on right (outside edge)
-                                row.AutoItem().AlignLeft().Text("");
-                                row.RelativeItem().AlignCenter().Text(t =>
-                                {
-                                    var headerText = GetHeaderText(_theme.RightPageHeaderContent, _theme.RightPageHeaderCapitalize);
-                                    if (!string.IsNullOrWhiteSpace(headerText))
-                                    {
-                                        t.DefaultTextStyle(x => x.FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize));
-                                        t.Span(headerText);
-                                    }
-                                });
-                                row.AutoItem().AlignRight().Text(t =>
-                                {
-                                    var span = t.Span(displayPageNumber.ToString());
-                                    span.FontFamily(_theme.BodyFont);
-                                    span.FontSize(_theme.BodyFontSize);
-                                });
-                            }
-                            else
+                                RenderMainContent(col, fragments, isOdd, displayPageNumber);
+                            });
+
+                        // Footer layer - positioned at absolute bottom (where we reserved 22 points)
+                        layers.Layer()
+                            .AlignBottom()
+                            .PaddingLeft(leftMargin, Unit.Inch)
+                            .PaddingRight(rightMargin, Unit.Inch)
+                            .Height(22f, Unit.Point)
+                            .Column(col =>
                             {
-                                // Left-hand page: number on left (outside edge)
-                                row.AutoItem().AlignLeft().Text(t =>
+                                if (_theme.PageNumberPosition == Models.PageNumberPosition.Bottom)
                                 {
-                                    var span = t.Span(displayPageNumber.ToString());
-                                    span.FontFamily(_theme.BodyFont);
-                                    span.FontSize(_theme.BodyFontSize);
-                                });
-                                row.RelativeItem().AlignCenter().Text(t =>
+                                    RenderPageNumberBottom(col.Item(), isOdd, displayPageNumber);
+                                }
+                                else if (_theme.PageNumberPosition == Models.PageNumberPosition.BottomCentered)
                                 {
-                                    var headerText = GetHeaderText(_theme.LeftPageHeaderContent, _theme.LeftPageHeaderCapitalize);
-                                    if (!string.IsNullOrWhiteSpace(headerText))
-                                    {
-                                        t.DefaultTextStyle(x => x.FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize));
-                                        t.Span(headerText);
-                                    }
-                                });
-                                row.AutoItem().AlignRight().Text("");
-                            }
-                        });
-                    }
+                                    RenderPageNumberBottomCentered(col.Item(), displayPageNumber);
+                                }
+                            });
+                    });
+                }
+                else
+                {
+                    // No bottom footer, use simple column
+                    IContainer margin = container;
+                    margin = margin.PaddingLeft(leftMargin, Unit.Inch).PaddingRight(rightMargin, Unit.Inch);
 
-                    bool isFirstFragment = true;
-                    foreach (var f in fragments)
+                    margin.Column(col =>
                     {
-                        switch (f.Type)
-                        {
-                            case "Title":
-                                isFirstFragment = false;
-
-                                col.Item().Text(t =>
-                                {
-                                    var s = t.Span(f.Text);
-                                    s.FontFamily(_theme.ChapterTitleFont);
-                                    s.FontSize(_theme.ChapterTitleFontSize);
-                                    if (_theme.ChapterTitleBold) s.SemiBold();
-                                    if (_theme.ChapterTitleItalic) s.Italic();
-                                    ApplyAlignment(t, _theme.ChapterTitleAlignment);
-                                });
-                                // Add spacing after title
-                                col.Item().Height((float)_theme.ChapterTitleBottomSpacing, Unit.Inch);
-                                break;
-                            case "Subtitle":
-                                isFirstFragment = false;
-                                col.Item().Text(t =>
-                                {
-                                    var s = t.Span(f.Text);
-                                    s.FontFamily(_theme.ChapterSubtitleFont);
-                                    s.FontSize(_theme.ChapterSubtitleFontSize);
-                                    if (_theme.ChapterSubtitleBold) s.SemiBold();
-                                    if (_theme.ChapterSubtitleItalic) s.Italic();
-                                    ApplyAlignment(t, _theme.ChapterSubtitleAlignment);
-                                });
-                                // Add spacing after subtitle
-                                col.Item().Height((float)_theme.ChapterSubtitleBottomSpacing, Unit.Inch);
-                                break;
-                            case "Para":
-                            case "Chunk":
-                                isFirstFragment = false;
-                                col.Item().PaddingBottom(8).Text(t =>
-                                {
-                                    // Apply first-line indent using non-breaking spaces
-                                    if (f.Indent)
-                                    {
-                                        // Use non-breaking spaces which won't be trimmed
-                                        int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
-                                        string indentSpaces = new string('\u00A0', numSpaces);
-                                        t.Span(indentSpaces + f.Text).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize);
-                                    }
-                                    else
-                                    {
-                                        t.Span(f.Text).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize);
-                                    }
-                                    t.Justify();
-                                });
-                                break;
-                        }
-                    }
-                });
+                        RenderMainContent(col, fragments, isOdd, displayPageNumber);
+                    });
+                }
             });
 
             State = state;
@@ -531,6 +488,83 @@ namespace PaperFinch.Components
                 Content = content,
                 HasMoreContent = hasMore
             };
+        }
+
+        private void RenderMainContent(ColumnDescriptor col, List<(string Type, string Text, bool Indent)> fragments, bool isOdd, int displayPageNumber)
+        {
+                // Check if this page will have a chapter title (don't show page number if so)
+                bool hasTitle = fragments.Any(f => f.Type == "Title");
+
+                // Add top offset if this is the first page of the chapter
+                // Check the ORIGINAL State property, not the modified local state variable
+                bool isFirstPage = hasTitle && State.ParagraphIndex == 0 && State.CharacterOffset == 0 && !State.TitleRendered;
+                if (isFirstPage)
+                {
+                    col.Item().Height((float)_theme.ChapterHeadingTopOffset, Unit.Inch);
+                }
+
+                // Add page number header at top if enabled and no title on this page
+                if (_showPageNumbers && !hasTitle && _theme.PageNumberPosition == Models.PageNumberPosition.Top)
+                {
+                    RenderPageNumberTop(col.Item(), isOdd, displayPageNumber);
+                }
+
+                bool isFirstFragment = true;
+                foreach (var f in fragments)
+                {
+                    switch (f.Type)
+                    {
+                        case "Title":
+                            isFirstFragment = false;
+
+                            col.Item().Text(t =>
+                            {
+                                var s = t.Span(f.Text);
+                                s.FontFamily(_theme.ChapterTitleFont);
+                                s.FontSize(_theme.ChapterTitleFontSize);
+                                if (_theme.ChapterTitleBold) s.SemiBold();
+                                if (_theme.ChapterTitleItalic) s.Italic();
+                                ApplyAlignment(t, _theme.ChapterTitleAlignment);
+                            });
+                            // Add spacing after title
+                            col.Item().Height((float)_theme.ChapterTitleBottomSpacing, Unit.Inch);
+                            break;
+                        case "Subtitle":
+                            isFirstFragment = false;
+                            col.Item().Text(t =>
+                            {
+                                var s = t.Span(f.Text);
+                                s.FontFamily(_theme.ChapterSubtitleFont);
+                                s.FontSize(_theme.ChapterSubtitleFontSize);
+                                if (_theme.ChapterSubtitleBold) s.SemiBold();
+                                if (_theme.ChapterSubtitleItalic) s.Italic();
+                                ApplyAlignment(t, _theme.ChapterSubtitleAlignment);
+                            });
+                            // Add spacing after subtitle
+                            col.Item().Height((float)_theme.ChapterSubtitleBottomSpacing, Unit.Inch);
+                            break;
+                        case "Para":
+                        case "Chunk":
+                            isFirstFragment = false;
+                            col.Item().PaddingBottom(8).Text(t =>
+                            {
+                                // Apply first-line indent using non-breaking spaces
+                                if (f.Indent)
+                                {
+                                    // Use non-breaking spaces which won't be trimmed
+                                    int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
+                                    string indentSpaces = new string('\u00A0', numSpaces);
+                                    t.Span(indentSpaces + f.Text).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize);
+                                }
+                                else
+                                {
+                                    t.Span(f.Text).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize);
+                                }
+                                t.Justify();
+                            });
+                            break;
+                    }
+                }
         }
 
         private string TakeChunkAtWordBoundary(string text, int maxChars)
@@ -573,6 +607,99 @@ namespace PaperFinch.Components
             };
 
             return capitalize ? text.ToUpper() : text;
+        }
+
+        private void RenderPageNumberTop(IContainer container, bool isOdd, int displayPageNumber)
+        {
+            container.Height(0.5f, Unit.Inch).AlignMiddle().Row(row =>
+            {
+                // Page number goes on the outside edge
+                // Header content goes in the center
+                // Odd pages (right side): outside is on RIGHT
+                // Even pages (left side): outside is on LEFT
+                if (isOdd)
+                {
+                    // Right-hand page: number on right (outside edge)
+                    row.AutoItem().AlignLeft().Text("");
+                    row.RelativeItem().AlignCenter().Text(t =>
+                    {
+                        var headerText = GetHeaderText(_theme.RightPageHeaderContent, _theme.RightPageHeaderCapitalize);
+                        if (!string.IsNullOrWhiteSpace(headerText))
+                        {
+                            t.DefaultTextStyle(x => x.FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize));
+                            t.Span(headerText);
+                        }
+                    });
+                    row.AutoItem().AlignRight().Text(t =>
+                    {
+                        var span = t.Span(displayPageNumber.ToString());
+                        span.FontFamily(_theme.BodyFont);
+                        span.FontSize(_theme.BodyFontSize);
+                    });
+                }
+                else
+                {
+                    // Left-hand page: number on left (outside edge)
+                    row.AutoItem().AlignLeft().Text(t =>
+                    {
+                        var span = t.Span(displayPageNumber.ToString());
+                        span.FontFamily(_theme.BodyFont);
+                        span.FontSize(_theme.BodyFontSize);
+                    });
+                    row.RelativeItem().AlignCenter().Text(t =>
+                    {
+                        var headerText = GetHeaderText(_theme.LeftPageHeaderContent, _theme.LeftPageHeaderCapitalize);
+                        if (!string.IsNullOrWhiteSpace(headerText))
+                        {
+                            t.DefaultTextStyle(x => x.FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize));
+                            t.Span(headerText);
+                        }
+                    });
+                    row.AutoItem().AlignRight().Text("");
+                }
+            });
+        }
+
+        private void RenderPageNumberBottom(IContainer container, bool isOdd, int displayPageNumber)
+        {
+            container.AlignMiddle().Row(row =>
+            {
+                // Same layout as top - page number on outside edge
+                if (isOdd)
+                {
+                    // Right-hand page: number on right (outside edge)
+                    row.AutoItem().AlignLeft().Text("");
+                    row.RelativeItem().AlignCenter().Text("");
+                    row.AutoItem().AlignRight().Text(t =>
+                    {
+                        var span = t.Span(displayPageNumber.ToString());
+                        span.FontFamily(_theme.BodyFont);
+                        span.FontSize(_theme.BodyFontSize);
+                    });
+                }
+                else
+                {
+                    // Left-hand page: number on left (outside edge)
+                    row.AutoItem().AlignLeft().Text(t =>
+                    {
+                        var span = t.Span(displayPageNumber.ToString());
+                        span.FontFamily(_theme.BodyFont);
+                        span.FontSize(_theme.BodyFontSize);
+                    });
+                    row.RelativeItem().AlignCenter().Text("");
+                    row.AutoItem().AlignRight().Text("");
+                }
+            });
+        }
+
+        private void RenderPageNumberBottomCentered(IContainer container, int displayPageNumber)
+        {
+            container.AlignCenter().AlignMiddle().Text(t =>
+            {
+                var span = t.Span(displayPageNumber.ToString());
+                span.FontFamily(_theme.BodyFont);
+                span.FontSize(_theme.BodyFontSize);
+            });
         }
     }
 }

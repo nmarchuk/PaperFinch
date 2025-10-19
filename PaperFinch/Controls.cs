@@ -13,6 +13,7 @@ namespace PaperFinch.Controls
     {
         private Image _imageControl;
         private byte[] _pdfData;
+        private double _scale = 1.0;
 
         public PdfPreviewControl()
         {
@@ -24,9 +25,28 @@ namespace PaperFinch.Controls
         }
 
         /// <summary>
+        /// Set the scale factor for the preview
+        /// </summary>
+        public void SetScale(double scale)
+        {
+            _scale = scale;
+            UpdateImageSize();
+        }
+
+        private void UpdateImageSize()
+        {
+            if (_imageControl.Source != null)
+            {
+                // Apply scale to the image dimensions
+                _imageControl.Width = _imageControl.Source.Size.Width * _scale;
+                _imageControl.Height = _imageControl.Source.Size.Height * _scale;
+            }
+        }
+
+        /// <summary>
         /// Load and render a PDF from a byte array
         /// </summary>
-        public void LoadPdf(byte[] pdfBytes, int pageIndex = 0, int dpi = 150)
+        public void LoadPdf(byte[] pdfBytes, int pageIndex = 0, int dpi = 150, double scale = 1.0)
         {
             if (pdfBytes == null || pdfBytes.Length == 0)
             {
@@ -35,16 +55,19 @@ namespace PaperFinch.Controls
             }
 
             _pdfData = pdfBytes;
+            _scale = scale;
             RenderPage(pageIndex, dpi);
         }
 
         /// <summary>
         /// Render a specific page of the loaded PDF
         /// </summary>
-        public void RenderPage(int pageIndex, int dpi = 150)
+        public void RenderPage(int pageIndex, int dpi = 150, double scale = 1.0)
         {
             if (_pdfData == null || _pdfData.Length == 0)
                 return;
+
+            _scale = scale;
 
             try
             {
@@ -60,10 +83,10 @@ namespace PaperFinch.Controls
                 // Get page size
                 var pageSize = pdfDocument.PageSizes[pageIndex];
 
-                // Calculate pixel dimensions based on DPI
-                double scale = dpi / 72.0;
-                int width = (int)(pageSize.Width * scale);
-                int height = (int)(pageSize.Height * scale);
+                // Calculate pixel dimensions based on DPI only
+                double baseScale = dpi / 72.0;
+                int width = (int)(pageSize.Width * baseScale);
+                int height = (int)(pageSize.Height * baseScale);
 
                 // Render page to System.Drawing.Image
                 using var image = pdfDocument.Render(pageIndex, width, height, dpi, dpi, false);
@@ -71,6 +94,9 @@ namespace PaperFinch.Controls
                 // Convert to Avalonia bitmap
                 var avaloniaBitmap = ConvertToAvaloniaBitmap(image);
                 _imageControl.Source = avaloniaBitmap;
+
+                // Apply scale to the image display size
+                UpdateImageSize();
             }
             catch (Exception ex)
             {

@@ -1,5 +1,7 @@
 ﻿using PaperFinch.Models;
 using QuestPDF.Infrastructure;
+using System.ComponentModel;
+using System.Linq;
 
 namespace PaperFinch.Models
 {
@@ -9,6 +11,24 @@ namespace PaperFinch.Models
         Title,
         Author,
         ChapterTitle
+    }
+
+    public enum PageNumberPosition
+    {
+        Top,
+        Bottom,
+        [Description("Bottom Centered")]
+        BottomCentered
+    }
+
+    public static class PageNumberPositionExtensions
+    {
+        public static string GetDescription(this PageNumberPosition position)
+        {
+            var field = position.GetType().GetField(position.ToString());
+            var attribute = (DescriptionAttribute?)field?.GetCustomAttributes(typeof(DescriptionAttribute), false).FirstOrDefault();
+            return attribute?.Description ?? position.ToString();
+        }
     }
 
     public class PdfTheme
@@ -25,7 +45,7 @@ namespace PaperFinch.Models
         // Body Text Settings
         public string BodyFont { get; set; } = "Times New Roman";
         public int BodyFontSize { get; set; } = 12;
-        public double LineSpacing { get; set; } = 1.2;
+        public double LineSpacing { get; set; } = 1.6;
         public double ParagraphIndent { get; set; } = 0.3;
         public double ChapterHeadingTopOffset { get; set; } = 2.0; // in inches, about 1/3 down a typical page
         public double ChapterTitleBottomSpacing { get; set; } = 0.2; // in inches
@@ -50,6 +70,9 @@ namespace PaperFinch.Models
         public bool LeftPageHeaderCapitalize { get; set; } = true;
         public HeaderContentType RightPageHeaderContent { get; set; } = HeaderContentType.Title;
         public bool RightPageHeaderCapitalize { get; set; } = true;
+
+        // Page Number Settings
+        public PageNumberPosition PageNumberPosition { get; set; } = PageNumberPosition.Top;
 
         public PdfTheme Clone()
         {
@@ -81,7 +104,8 @@ namespace PaperFinch.Models
                 LeftPageHeaderContent = LeftPageHeaderContent,
                 LeftPageHeaderCapitalize = LeftPageHeaderCapitalize,
                 RightPageHeaderContent = RightPageHeaderContent,
-                RightPageHeaderCapitalize = RightPageHeaderCapitalize
+                RightPageHeaderCapitalize = RightPageHeaderCapitalize,
+                PageNumberPosition = PageNumberPosition
             };
         }
     }

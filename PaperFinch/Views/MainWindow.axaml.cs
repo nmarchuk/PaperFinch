@@ -30,7 +30,7 @@ public partial class MainWindow : Window
                 {
                     try
                     {
-                        PdfPreview.LoadPdf(pdfBytes, 0, 150);
+                        PdfPreview.LoadPdf(pdfBytes, 0, 150, vm.ZoomLevel);
                         int pages = PdfPreview.GetPageCount();
                         vm.UpdatePageCount(pages);
                     }
@@ -48,7 +48,7 @@ public partial class MainWindow : Window
                 {
                     try
                     {
-                        PdfPreview.RenderPage(pageIndex, 150);
+                        PdfPreview.RenderPage(pageIndex, 150, vm.ZoomLevel);
                     }
                     catch (Exception ex)
                     {
@@ -87,6 +87,19 @@ public partial class MainWindow : Window
                 };
 
                 return await dialog.ShowDialog<string?>(this);
+            };
+
+            // Attach ConfirmAction for delete confirmations
+            vm.ConfirmAction = async (title, message) =>
+            {
+                var dialog = new ConfirmationDialog
+                {
+                    Title = title,
+                    Message = message
+                };
+
+                var result = await dialog.ShowDialog<bool?>(this);
+                return result ?? false;
             };
 
             // Optional: Auto-generate on startup

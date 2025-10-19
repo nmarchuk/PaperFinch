@@ -1,4 +1,5 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using Avalonia.Data.Converters;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PaperFinch.Components;
 using PaperFinch.Models;
@@ -8,6 +9,7 @@ using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -27,6 +29,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private PdfTheme? _selectedTheme;
     private List<PdfTheme> _themes = new();
     private TrimSizeItem? _selectedTrimSize;
+    private double _zoomLevel = 0.7; // Default scale at 70% (which displays as 100%)
+    private bool _isGenerating = false;
+    private const int BaseDpi = 150; // Fixed DPI for rendering
 
     private Dictionary<ChapterViewModel, int> _chapterStartPages = new();
 
@@ -80,6 +85,28 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    public double ZoomLevel
+    {
+        get => _zoomLevel;
+        set
+        {
+            if (SetProperty(ref _zoomLevel, value))
+            {
+                // Re-render current page with new zoom level
+                if (CurrentPage > 0)
+                {
+                    RenderPageAction?.Invoke(CurrentPage - 1);
+                }
+            }
+        }
+    }
+
+    public bool IsGenerating
+    {
+        get => _isGenerating;
+        set => SetProperty(ref _isGenerating, value);
+    }
+
     public TrimSizeItem SelectedTrimSize
     {
         get => _selectedTrimSize;
@@ -95,6 +122,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 ApplyTheme(value);
                 SaveThemeCommand.NotifyCanExecuteChanged();
+                DeleteThemeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -133,12 +161,14 @@ public partial class MainWindowViewModel : ViewModelBase
     public List<string> AvailableFonts { get; }
     public List<TextAlignment> TextAlignments { get; }
     public List<HeaderContentType> HeaderContentTypes { get; }
+    public List<PageNumberPositionItem> PageNumberPositions { get; }
 
     // Delegate for the View to inject the PDF loader
     public Action<byte[]>? LoadPdfAction { get; set; }
     public Action<int>? RenderPageAction { get; set; }
     public Func<string, Task<string?>>? SaveFileDialogAction { get; set; }
     public Func<string, string, Task<string?>>? PromptForTextAction { get; set; }
+    public Func<string, string, Task<bool>>? ConfirmAction { get; set; }
 
     // Callback for when tabs are switched - set by the View
     public Action<int>? OnTabChanged { get; set; }
@@ -214,6 +244,11 @@ public partial class MainWindowViewModel : ViewModelBase
         // Populate header content types
         HeaderContentTypes = Enum.GetValues<HeaderContentType>().ToList();
 
+        // Populate page number positions
+        PageNumberPositions = Enum.GetValues<PageNumberPosition>()
+            .Select(p => new PageNumberPositionItem { Position = p, DisplayName = p.GetDescription() })
+            .ToList();
+
         // Load themes asynchronously
         _ = LoadThemesAsync();
 
@@ -264,7 +299,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public void ApplyTheme(PdfTheme theme)
     {
-        Theme.ApplyFrom(theme, TrimSizes);
+        Theme.ApplyFrom(theme, TrimSizes, PageNumberPositions);
     }
 
     private PdfTheme CreateThemeFromCurrentSettings(string name)
@@ -283,6 +318,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 return;
             }
 
+            IsGenerating = true;
             PageInfo = "Generating PDF...";
 
             var theme = CreateThemeFromCurrentSettings("Current");
@@ -293,6 +329,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (LoadPdfAction == null)
             {
                 PageInfo = "Preview not available";
+                IsGenerating = false;
                 return;
             }
 
@@ -332,6 +369,10 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             PageInfo = $"Error: {ex.Message}";
         }
+        finally
+        {
+            IsGenerating = false;
+        }
     }
 
     [RelayCommand]
@@ -352,9 +393,15 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand(CanExecute = nameof(CanRemoveChapter))]
-    private void RemoveChapter()
+    private async Task RemoveChapter()
     {
-        if (Project.SelectedChapter == null)
+        if (Project.SelectedChapter == null || ConfirmAction == null)
+            return;
+
+        var chapterTitle = Project.SelectedChapter.Title;
+        bool confirmed = await ConfirmAction.Invoke("Delete Chapter", $"Are you sure you want to delete '{chapterTitle}'?");
+
+        if (!confirmed)
             return;
 
         var index = Project.Chapters.IndexOf(Project.SelectedChapter);
@@ -491,12 +538,17 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanDeleteTheme))]
     private async Task DeleteTheme()
     {
-        if (SelectedTheme == null || SelectedTheme.Name == "Default")
+        if (SelectedTheme == null || SelectedTheme.Name == "Default" || ConfirmAction == null)
+            return;
+
+        var themeName = SelectedTheme.Name;
+        bool confirmed = await ConfirmAction.Invoke("Delete Theme", $"Are you sure you want to delete the theme '{themeName}'?");
+
+        if (!confirmed)
             return;
 
         try
         {
-            var themeName = SelectedTheme.Name;
             await _themeService.DeleteThemeAsync(themeName);
 
             // Reload themes and select default
@@ -586,12 +638,17 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanDeleteProject))]
     private async Task DeleteProjectAsync()
     {
-        if (SelectedProject == null || SelectedProject.Name == "Default")
+        if (SelectedProject == null || SelectedProject.Name == "Default" || ConfirmAction == null)
+            return;
+
+        var projectName = SelectedProject.Name;
+        bool confirmed = await ConfirmAction.Invoke("Delete Project", $"Are you sure you want to delete the project '{projectName}'?");
+
+        if (!confirmed)
             return;
 
         try
         {
-            var projectName = SelectedProject.Name;
             await _projectService.DeleteProjectAsync(projectName);
 
             // Reload projects and select default
@@ -798,6 +855,13 @@ public partial class MainWindowViewModel : ViewModelBase
                         // Determine if page numbers should be shown for this chapter
                         bool showPageNumbers = !chapter.ExcludeFromPageCount;
 
+                        // Create callback to record the starting page for this chapter
+                        var chapterRef = chapter; // Capture for closure
+                        Action<int> onFirstPage = (pageNum) =>
+                        {
+                            _chapterStartPages[chapterRef] = pageNum;
+                        };
+
                         col.Item().Dynamic(new AlternatingMarginContent(
                             chapter.Title,
                             chapter.Subtitle,
@@ -806,7 +870,8 @@ public partial class MainWindowViewModel : ViewModelBase
                             -excludedChapterCount, // Pass offset to subtract from page numbers
                             showPageNumbers,
                             Project.BookTitle,
-                            Project.BookAuthor
+                            Project.BookAuthor,
+                            onFirstPage
                         ));
                     }
                 });
@@ -869,4 +934,30 @@ public class TrimSizeItem
 {
     public TrimSize Size { get; set; }
     public string DisplayName { get; set; } = string.Empty;
+}
+
+public class PageNumberPositionItem
+{
+    public PageNumberPosition Position { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+}
+
+public class ZoomToPercentageConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is double zoom)
+        {
+            // Convert internal scale (0.7 = 100%) to display percentage
+            // Formula: displayPercentage = (zoom / 0.7) * 100
+            double percentage = (zoom / 0.7) * 100.0;
+            return $"{percentage:0}%";
+        }
+        return "100%";
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
 }
