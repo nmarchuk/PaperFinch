@@ -132,6 +132,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public List<TrimSizeItem> TrimSizes { get; }
     public List<string> AvailableFonts { get; }
     public List<TextAlignment> TextAlignments { get; }
+    public List<HeaderContentType> HeaderContentTypes { get; }
 
     // Delegate for the View to inject the PDF loader
     public Action<byte[]>? LoadPdfAction { get; set; }
@@ -209,6 +210,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Populate text alignments
         TextAlignments = Enum.GetValues<TextAlignment>().ToList();
+
+        // Populate header content types
+        HeaderContentTypes = Enum.GetValues<HeaderContentType>().ToList();
 
         // Load themes asynchronously
         _ = LoadThemesAsync();
@@ -800,7 +804,9 @@ public partial class MainWindowViewModel : ViewModelBase
                             chapter.Content,
                             theme,
                             -excludedChapterCount, // Pass offset to subtract from page numbers
-                            showPageNumbers
+                            showPageNumbers,
+                            Project.BookTitle,
+                            Project.BookAuthor
                         ));
                     }
                 });
@@ -836,7 +842,11 @@ public partial class MainWindowViewModel : ViewModelBase
                     chapterTitle,
                     chapterSubtitle,
                     content,
-                    theme
+                    theme,
+                    0, // no offset for single chapter
+                    false, // no page numbers for single chapter mode
+                    Project.BookTitle,
+                    Project.BookAuthor
                 ));
 
                 page.Footer()

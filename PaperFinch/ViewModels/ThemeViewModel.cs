@@ -35,6 +35,11 @@ namespace PaperFinch.ViewModels
         private bool _chapterSubtitleItalic = true;
         private TextAlignment _chapterSubtitleAlignment = TextAlignment.Center;
 
+        private HeaderContentType _leftPageHeaderContent = HeaderContentType.Author;
+        private bool _leftPageHeaderCapitalize = true;
+        private HeaderContentType _rightPageHeaderContent = HeaderContentType.Title;
+        private bool _rightPageHeaderCapitalize = true;
+
         public double InsideMargin
         {
             get => _insideMargin;
@@ -167,6 +172,30 @@ namespace PaperFinch.ViewModels
             set => SetProperty(ref _chapterSubtitleAlignment, value);
         }
 
+        public HeaderContentType LeftPageHeaderContent
+        {
+            get => _leftPageHeaderContent;
+            set => SetProperty(ref _leftPageHeaderContent, value);
+        }
+
+        public bool LeftPageHeaderCapitalize
+        {
+            get => _leftPageHeaderCapitalize;
+            set => SetProperty(ref _leftPageHeaderCapitalize, value);
+        }
+
+        public HeaderContentType RightPageHeaderContent
+        {
+            get => _rightPageHeaderContent;
+            set => SetProperty(ref _rightPageHeaderContent, value);
+        }
+
+        public bool RightPageHeaderCapitalize
+        {
+            get => _rightPageHeaderCapitalize;
+            set => SetProperty(ref _rightPageHeaderCapitalize, value);
+        }
+
         // Create a PdfTheme instance from current ThemeViewModel values
         public PdfTheme ToPdfTheme(string name)
         {
@@ -194,7 +223,11 @@ namespace PaperFinch.ViewModels
                 ChapterSubtitleFontSize = ChapterSubtitleFontSize,
                 ChapterSubtitleBold = ChapterSubtitleBold,
                 ChapterSubtitleItalic = ChapterSubtitleItalic,
-                ChapterSubtitleAlignment = ChapterSubtitleAlignment
+                ChapterSubtitleAlignment = ChapterSubtitleAlignment,
+                LeftPageHeaderContent = LeftPageHeaderContent,
+                LeftPageHeaderCapitalize = LeftPageHeaderCapitalize,
+                RightPageHeaderContent = RightPageHeaderContent,
+                RightPageHeaderCapitalize = RightPageHeaderCapitalize
             };
         }
 
@@ -225,6 +258,10 @@ namespace PaperFinch.ViewModels
             ChapterSubtitleBold = theme.ChapterSubtitleBold;
             ChapterSubtitleItalic = theme.ChapterSubtitleItalic;
             ChapterSubtitleAlignment = theme.ChapterSubtitleAlignment;
+            LeftPageHeaderContent = theme.LeftPageHeaderContent;
+            LeftPageHeaderCapitalize = theme.LeftPageHeaderCapitalize;
+            RightPageHeaderContent = theme.RightPageHeaderContent;
+            RightPageHeaderCapitalize = theme.RightPageHeaderCapitalize;
 
             if (availableTrimSizes != null)
             {

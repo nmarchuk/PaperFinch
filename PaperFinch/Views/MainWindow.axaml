@@ -153,6 +153,39 @@
                                     </StackPanel>
                                 </StackPanel>
                             </TabItem>
+
+                            <TabItem Header="Headers">
+                                <StackPanel Margin="5" Spacing="12">
+                                    <TextBlock Text="Running Headers (Page Top)" FontWeight="Bold" FontSize="14"/>
+                                    <TextBlock Text="Configure what appears in the center of the page header" FontSize="11" Foreground="Gray" TextWrapping="Wrap"/>
+
+                                    <Separator Margin="0,10"/>
+
+                                    <TextBlock Text="Left-Hand Pages" FontWeight="Bold" FontSize="14"/>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Header Content:"/>
+                                        <ComboBox ItemsSource="{Binding HeaderContentTypes}"
+                                                  SelectedItem="{Binding Theme.LeftPageHeaderContent, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch"/>
+
+                                        <CheckBox Content="Capitalize header text"
+                                                  IsChecked="{Binding Theme.LeftPageHeaderCapitalize, Mode=TwoWay}"/>
+                                    </StackPanel>
+
+                                    <Separator Margin="0,10"/>
+
+                                    <TextBlock Text="Right-Hand Pages" FontWeight="Bold" FontSize="14"/>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Header Content:"/>
+                                        <ComboBox ItemsSource="{Binding HeaderContentTypes}"
+                                                  SelectedItem="{Binding Theme.RightPageHeaderContent, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch"/>
+
+                                        <CheckBox Content="Capitalize header text"
+                                                  IsChecked="{Binding Theme.RightPageHeaderCapitalize, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </TabItem>
                         </TabControl>
 
                         <Separator Margin="0,10"/>

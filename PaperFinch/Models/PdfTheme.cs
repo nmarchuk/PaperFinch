@@ -3,6 +3,14 @@ using QuestPDF.Infrastructure;
 
 namespace PaperFinch.Models
 {
+    public enum HeaderContentType
+    {
+        None,
+        Title,
+        Author,
+        ChapterTitle
+    }
+
     public class PdfTheme
     {
         public string Name { get; set; } = "Default";
@@ -37,6 +45,12 @@ namespace PaperFinch.Models
         public bool ChapterSubtitleItalic { get; set; } = true;
         public TextAlignment ChapterSubtitleAlignment { get; set; } = TextAlignment.Center;
 
+        // Header Settings (running headers)
+        public HeaderContentType LeftPageHeaderContent { get; set; } = HeaderContentType.Author;
+        public bool LeftPageHeaderCapitalize { get; set; } = true;
+        public HeaderContentType RightPageHeaderContent { get; set; } = HeaderContentType.Title;
+        public bool RightPageHeaderCapitalize { get; set; } = true;
+
         public PdfTheme Clone()
         {
             return new PdfTheme
@@ -63,7 +77,11 @@ namespace PaperFinch.Models
                 ChapterSubtitleFontSize = ChapterSubtitleFontSize,
                 ChapterSubtitleBold = ChapterSubtitleBold,
                 ChapterSubtitleItalic = ChapterSubtitleItalic,
-                ChapterSubtitleAlignment = ChapterSubtitleAlignment
+                ChapterSubtitleAlignment = ChapterSubtitleAlignment,
+                LeftPageHeaderContent = LeftPageHeaderContent,
+                LeftPageHeaderCapitalize = LeftPageHeaderCapitalize,
+                RightPageHeaderContent = RightPageHeaderContent,
+                RightPageHeaderCapitalize = RightPageHeaderCapitalize
             };
         }
     }

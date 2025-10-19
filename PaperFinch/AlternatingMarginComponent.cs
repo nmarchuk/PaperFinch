@@ -25,14 +25,18 @@ namespace PaperFinch.Components
         private readonly Models.PdfTheme _theme;
         private readonly int _pageNumberOffset;
         private readonly bool _showPageNumbers;
+        private readonly string _bookTitle;
+        private readonly string _bookAuthor;
 
-        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string content, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false)
+        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string content, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false, string bookTitle = "", string bookAuthor = "")
         {
             _chapterTitle = chapterTitle;
             _chapterSubtitle = chapterSubtitle;
             _theme = theme;
             _pageNumberOffset = pageNumberOffset;
             _showPageNumbers = showPageNumbers;
+            _bookTitle = bookTitle;
+            _bookAuthor = bookAuthor;
 
             // Prefer splitting on two-or-more newlines (paragraph separators).
             // If that produces a single paragraph but the input contains single newlines,
@@ -414,13 +418,23 @@ namespace PaperFinch.Components
                         col.Item().Height(0.5f, Unit.Inch).AlignMiddle().Row(row =>
                         {
                             // Page number goes on the outside edge
+                            // Header content goes in the center
                             // Odd pages (right side): outside is on RIGHT
                             // Even pages (left side): outside is on LEFT
                             if (isOdd)
                             {
                                 // Right-hand page: number on right (outside edge)
-                                row.RelativeItem().AlignLeft().Text("");
-                                row.RelativeItem().AlignRight().Text(t =>
+                                row.AutoItem().AlignLeft().Text("");
+                                row.RelativeItem().AlignCenter().Text(t =>
+                                {
+                                    var headerText = GetHeaderText(_theme.RightPageHeaderContent, _theme.RightPageHeaderCapitalize);
+                                    if (!string.IsNullOrWhiteSpace(headerText))
+                                    {
+                                        t.DefaultTextStyle(x => x.FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize));
+                                        t.Span(headerText);
+                                    }
+                                });
+                                row.AutoItem().AlignRight().Text(t =>
                                 {
                                     var span = t.Span(displayPageNumber.ToString());
                                     span.FontFamily(_theme.BodyFont);
@@ -430,13 +444,22 @@ namespace PaperFinch.Components
                             else
                             {
                                 // Left-hand page: number on left (outside edge)
-                                row.RelativeItem().AlignLeft().Text(t =>
+                                row.AutoItem().AlignLeft().Text(t =>
                                 {
                                     var span = t.Span(displayPageNumber.ToString());
                                     span.FontFamily(_theme.BodyFont);
                                     span.FontSize(_theme.BodyFontSize);
                                 });
-                                row.RelativeItem().AlignRight().Text("");
+                                row.RelativeItem().AlignCenter().Text(t =>
+                                {
+                                    var headerText = GetHeaderText(_theme.LeftPageHeaderContent, _theme.LeftPageHeaderCapitalize);
+                                    if (!string.IsNullOrWhiteSpace(headerText))
+                                    {
+                                        t.DefaultTextStyle(x => x.FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize));
+                                        t.Span(headerText);
+                                    }
+                                });
+                                row.AutoItem().AlignRight().Text("");
                             }
                         });
                     }
@@ -537,6 +560,19 @@ namespace PaperFinch.Components
                     text.Justify();
                     break;
             }
+        }
+
+        private string GetHeaderText(Models.HeaderContentType contentType, bool capitalize)
+        {
+            string text = contentType switch
+            {
+                Models.HeaderContentType.Title => _bookTitle,
+                Models.HeaderContentType.Author => _bookAuthor,
+                Models.HeaderContentType.ChapterTitle => _chapterTitle,
+                _ => ""
+            };
+
+            return capitalize ? text.ToUpper() : text;
         }
     }
 }
