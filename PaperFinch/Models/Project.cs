@@ -30,7 +30,7 @@ namespace PaperFinch.Models
     {
         public string Title { get; set; } = string.Empty;
         public string Subtitle { get; set; } = string.Empty;
-        public string Content { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty; // Now stores Markdown
         public bool ExcludeFromPageCount { get; set; } = false;
     }
 }

@@ -4,6 +4,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:PaperFinch.ViewModels"
         xmlns:controls="using:PaperFinch.Controls"
+        xmlns:avaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
         mc:Ignorable="d"
         x:Class="PaperFinch.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
@@ -16,7 +17,7 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
     
-    <Grid ColumnDefinitions="400,*,250" RowDefinitions="*">
+    <Grid ColumnDefinitions="450,*,250" RowDefinitions="*">
         <!-- LEFT COLUMN: settings + actions -->
         <Grid Grid.Column="0" Margin="10">
             <Grid RowDefinitions="Auto,*,Auto">
@@ -42,7 +43,7 @@
                         </ComboBox>
 
                         <StackPanel Orientation="Horizontal" Spacing="5">
-                            <Button Content="Save Theme" Command="{Binding SaveThemeCommand}" Width="85"/>
+                            <Button Content="Save Theme" Command="{Binding SaveThemeCommand}" Width="120"/>
                             <Button Content="Save As..." Command="{Binding SaveAsNewThemeCommand}" Width="85"/>
                             <Button Content="Delete" Command="{Binding DeleteThemeCommand}" Width="85"/>
                         </StackPanel>
@@ -233,7 +234,7 @@
                     </ComboBox>
 
                     <StackPanel Orientation="Horizontal" Spacing="5">
-                        <Button Content="Save Project" Command="{Binding SaveProjectCommand}" Width="85"/>
+                        <Button Content="Save Project" Command="{Binding SaveProjectCommand}" Width="120"/>
                         <Button Content="Save As..." Command="{Binding SaveAsNewProjectCommand}" Width="85"/>
                         <Button Content="Delete" Command="{Binding DeleteProjectCommand}" Width="85"/>
                     </StackPanel>
@@ -254,21 +255,28 @@
                         <StackPanel Spacing="10" Margin="6">
                             <TextBlock Text="Chapter Content" FontWeight="Bold" FontSize="14"/>
                             <TextBlock Text="Chapter Title:"/>
-                            <TextBox Text="{Binding Project.SelectedChapter.Title, Mode=TwoWay}" HorizontalAlignment="Stretch"/>
+                            <TextBox Text="{Binding Project.SelectedChapter.Title, Mode=TwoWay, FallbackValue=''}" HorizontalAlignment="Stretch"/>
 
                             <TextBlock Text="Chapter Subtitle:"/>
-                            <TextBox Text="{Binding Project.SelectedChapter.Subtitle, Mode=TwoWay}" HorizontalAlignment="Stretch"/>
+                            <TextBox Text="{Binding Project.SelectedChapter.Subtitle, Mode=TwoWay, FallbackValue=''}" HorizontalAlignment="Stretch"/>
 
-                            <CheckBox Content="Exclude from page numbering (e.g., title page, copyright page)" 
-                                      IsChecked="{Binding Project.SelectedChapter.ExcludeFromPageCount, Mode=TwoWay}"
+                            <CheckBox Content="Exclude from page numbering (e.g., title page, copyright page)"
+                                      IsChecked="{Binding Project.SelectedChapter.ExcludeFromPageCount, Mode=TwoWay, FallbackValue=False}"
                                       Margin="0,5,0,0"/>
 
-                            <TextBlock Text="Content:"/>
-                            <TextBox AcceptsReturn="True"
-                                     TextWrapping="Wrap"
-                                     Height="300"
-                                     Text="{Binding Project.SelectedChapter.Content, Mode=TwoWay}"
-                                     HorizontalAlignment="Stretch"/>
+                            <TextBlock Text="Content (Markdown):"/>
+                            <TextBlock Text="**bold** *italic* ++underline++" FontSize="11" Foreground="Gray" Margin="0,2,0,5"/>
+
+                            <Border BorderBrush="Gray" BorderThickness="1" Height="500" Width="800">
+                                <avaloniaEdit:TextEditor x:Name="ContentEditor"
+                                                         HorizontalAlignment="Stretch"
+                                                         VerticalAlignment="Stretch"
+                                                         ShowLineNumbers="False"
+                                                         WordWrap="True"
+                                                         FontFamily="Times New Roman"
+                                                         FontSize="16"
+                                                         />
+                            </Border>
 
                             <TextBlock Text="Note: PaperFinch should not be used to replace a normal word processor. Please use this area to make final corrections only, and always back up your work!"
                                        Foreground="DarkRed"
@@ -384,15 +392,17 @@
                         CornerRadius="4">
                     <ListBox ItemsSource="{Binding Project.Chapters}"
                              SelectedItem="{Binding Project.SelectedChapter, Mode=TwoWay}"
+                             SelectionMode="Single"
                              HorizontalAlignment="Stretch">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Margin="5">
-                                    <TextBlock Text="{Binding Title}" 
+                                <StackPanel Margin="2">
+                                    <TextBlock Text="{Binding Title}"
                                                FontWeight="Bold"
+                                               FontSize="12"
                                                TextWrapping="Wrap"/>
-                                    <TextBlock Text="{Binding Subtitle}" 
-                                               FontSize="11"
+                                    <TextBlock Text="{Binding Subtitle}"
+                                               FontSize="10"
                                                Foreground="Gray"
                                                TextWrapping="Wrap"/>
                                 </StackPanel>

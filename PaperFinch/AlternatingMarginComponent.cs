@@ -1,4 +1,8 @@
-﻿using QuestPDF.Elements;
+﻿using Markdig;
+using Markdig.Extensions.EmphasisExtras;
+using Markdig.Syntax;
+using Markdig.Syntax.Inlines;
+using QuestPDF.Elements;
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using System;
@@ -21,7 +25,7 @@ namespace PaperFinch.Components
     {
         private readonly string _chapterTitle;
         private readonly string _chapterSubtitle;
-        private readonly List<string> _paragraphs;
+        private readonly string _markdownContent;
         private readonly Models.PdfTheme _theme;
         private readonly int _pageNumberOffset;
         private readonly bool _showPageNumbers;
@@ -29,11 +33,13 @@ namespace PaperFinch.Components
         private readonly string _bookAuthor;
         private readonly Action<int>? _onFirstPageCallback;
         private bool _firstPageReported = false;
+        private readonly List<string> _paragraphs; // Plain text paragraphs parsed from Markdown
 
-        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string content, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false, string bookTitle = "", string bookAuthor = "", Action<int>? onFirstPage = null)
+        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string markdownContent, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false, string bookTitle = "", string bookAuthor = "", Action<int>? onFirstPage = null)
         {
             _chapterTitle = chapterTitle;
             _chapterSubtitle = chapterSubtitle;
+            _markdownContent = markdownContent ?? string.Empty;
             _theme = theme;
             _pageNumberOffset = pageNumberOffset;
             _showPageNumbers = showPageNumbers;
@@ -41,37 +47,50 @@ namespace PaperFinch.Components
             _bookAuthor = bookAuthor;
             _onFirstPageCallback = onFirstPage;
 
-            // Prefer splitting on two-or-more newlines (paragraph separators).
-            // If that produces a single paragraph but the input contains single newlines,
-            // fall back to splitting on single newlines so inputs that use single newlines
-            // as paragraph boundaries are handled.
-            var doubleSplit = Regex.Split(content, @"\r?\n\s*\r?\n")
-                                   .Select(p => p.Trim())
-                                   .Where(p => !string.IsNullOrWhiteSpace(p))
-                                   .ToList();
+            // Parse Markdown into paragraphs
+            _paragraphs = ParseMarkdownToParagraphs(markdownContent ?? string.Empty);
+        }
 
-            if (doubleSplit.Count > 1)
+        private string StripMarkdownFormatting(string text)
+        {
+            // Remove Markdown formatting characters for measurement
+            // This should match what gets rendered (text without markers)
+            var stripped = text;
+
+            // Remove bold markers: **text** or __text__
+            stripped = Regex.Replace(stripped, @"\*\*(.+?)\*\*", "$1");
+            stripped = Regex.Replace(stripped, @"__(.+?)__", "$1");
+
+            // Remove italic markers: *text* or _text_ (but not if part of bold)
+            stripped = Regex.Replace(stripped, @"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", "$1");
+            stripped = Regex.Replace(stripped, @"(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", "$1");
+
+            // Remove underline markers: ++text++
+            stripped = Regex.Replace(stripped, @"\+\+(.+?)\+\+", "$1");
+
+            return stripped;
+        }
+
+        private List<string> ParseMarkdownToParagraphs(string markdown)
+        {
+            // Split by double newlines for proper paragraph separation
+            // Single newlines within a paragraph are preserved for Markdown to handle
+            if (string.IsNullOrWhiteSpace(markdown))
+                return new List<string> { string.Empty };
+
+            // Split on double newlines (with optional carriage returns)
+            var paragraphs = markdown.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.None)
+                .Select(p => p.Trim())
+                .Where(p => !string.IsNullOrEmpty(p))
+                .ToList();
+
+            // If no double newlines found but there's content, treat entire content as one paragraph
+            if (paragraphs.Count == 0 && !string.IsNullOrWhiteSpace(markdown))
             {
-                _paragraphs = doubleSplit;
+                paragraphs.Add(markdown.Trim());
             }
-            else
-            {
-                // No double-newline paragraph separators detected.
-                // If input contains single newlines, split on single lines; otherwise keep whole content.
-                if (content.Contains('\n'))
-                {
-                    _paragraphs = Regex.Split(content, @"\r?\n")
-                                       .Select(p => p.Trim())
-                                       .Where(p => !string.IsNullOrWhiteSpace(p))
-                                       .ToList();
-                }
-                else
-                {
-                    _paragraphs = new List<string>();
-                    if (!string.IsNullOrWhiteSpace(content))
-                        _paragraphs.Add(content.Trim());
-                }
-            }
+
+            return paragraphs.Count > 0 ? paragraphs : new List<string> { string.Empty };
         }
 
         public ContentState State { get; set; } = new ContentState
@@ -124,7 +143,7 @@ namespace PaperFinch.Components
             float rightMargin = isOdd ? (float)_theme.OutsideMargin : (float)_theme.InsideMargin;
 
             // Helper: build a column element from fragments and measure its total height (constrained width).
-            float MeasureFragmentsHeight(IEnumerable<(string Type, string Text, bool Indent)> fragments)
+            float MeasureFragmentsHeight(IEnumerable<(string Type, string Text, bool Indent, int ParagraphIndex, int RunOffset)> fragments)
             {
                 var temp = context.CreateElement(e =>
                 {
@@ -192,15 +211,18 @@ namespace PaperFinch.Components
                                      isFirst = false;
                                      col.Item().PaddingBottom(8).Text(t =>
                                      {
+                                         // Strip Markdown formatting for accurate measurement
+                                         string textForMeasurement = StripMarkdownFormatting(f.Text);
+
                                          if (f.Indent)
                                          {
                                              int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
                                              string indentSpaces = new string('\u00A0', numSpaces);
-                                             t.Span(indentSpaces + f.Text).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize);
+                                             t.Span(indentSpaces + textForMeasurement).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize).LineHeight((float)_theme.LineSpacing);
                                          }
                                          else
                                          {
-                                             t.Span(f.Text).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize);
+                                             t.Span(textForMeasurement).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize).LineHeight((float)_theme.LineSpacing);
                                          }
                                          t.Justify();
                                      });
@@ -217,7 +239,7 @@ namespace PaperFinch.Components
             }
 
             // Fragments accepted for the page.
-            var fragments = new List<(string Type, string Text, bool Indent)>();
+            var fragments = new List<(string Type, string Text, bool Indent, int ParagraphIndex, int RunOffset)>();
             // Track measured total height of accepted fragments to compute incremental heights.
             float currentMeasuredTotal = 0f;
             float remaining = availHeight;
@@ -225,7 +247,7 @@ namespace PaperFinch.Components
             // Title
             if (!state.TitleRendered && !string.IsNullOrWhiteSpace(_chapterTitle))
             {
-                var candidate = ("Title", _chapterTitle, false);
+                var candidate = ("Title", _chapterTitle, false, -1, 0);
                 float after = MeasureFragmentsHeight(fragments.Concat(new[] { candidate }));
                 float inc = after - currentMeasuredTotal;
                 if (inc <= remaining)
@@ -255,7 +277,7 @@ namespace PaperFinch.Components
             // Subtitle
             if (state.TitleRendered && !state.SubtitleRendered && !string.IsNullOrWhiteSpace(_chapterSubtitle))
             {
-                var candidate = ("Subtitle", _chapterSubtitle, false);
+                var candidate = ("Subtitle", _chapterSubtitle, false, -1, 0);
                 float after = MeasureFragmentsHeight(fragments.Concat(new[] { candidate }));
                 float inc = after - currentMeasuredTotal;
                 if (inc <= remaining)
@@ -296,7 +318,7 @@ namespace PaperFinch.Components
                 bool shouldIndent = state.ParagraphIndex > 0 && state.CharacterOffset == 0;
 
                 // Try whole paragraph
-                var candidatePara = ("Para", full, shouldIndent);
+                var candidatePara = ("Para", full, shouldIndent, state.ParagraphIndex, state.CharacterOffset);
                 float afterPara = MeasureFragmentsHeight(fragments.Concat(new[] { candidatePara }));
                 float incPara = afterPara - currentMeasuredTotal;
                 if (incPara <= remaining)
@@ -311,7 +333,9 @@ namespace PaperFinch.Components
 
                 // Paragraph doesn't fit whole. Try to split it.
                 // Binary search for largest chunk that fits in remaining space
-                int low = 1, high = full.Length, best = 0;
+                int low = 1, high = full.Length;
+                string bestChunkText = string.Empty;
+                int bestOriginalLength = 0; // Track length in original text before TrimEnd
                 while (low <= high)
                 {
                     int mid = (low + high) / 2;
@@ -319,13 +343,19 @@ namespace PaperFinch.Components
                     if (string.IsNullOrEmpty(candidateText))
                         candidateText = full.Substring(0, Math.Min(mid, full.Length));
 
-                    var candidateChunk = ("Chunk", candidateText, shouldIndent);
+                    var candidateChunk = ("Chunk", candidateText, shouldIndent, state.ParagraphIndex, state.CharacterOffset);
                     float afterChunk = MeasureFragmentsHeight(fragments.Concat(new[] { candidateChunk }));
                     float incChunk = afterChunk - currentMeasuredTotal;
 
                     if (incChunk <= remaining)
                     {
-                        best = candidateText.Length;
+                        bestChunkText = candidateText;
+                        // Find the original length before trimming
+                        // TakeChunkAtWordBoundary cuts at word boundary and trims
+                        // We need to know where we are in the original `full` text
+                        int cutPos = full.LastIndexOf(' ', Math.Min(mid, full.Length - 1));
+                        if (cutPos <= 0) cutPos = Math.Min(mid, full.Length);
+                        bestOriginalLength = cutPos;
                         low = mid + 1;
                     }
                     else
@@ -334,19 +364,18 @@ namespace PaperFinch.Components
                     }
                 }
 
-                if (best > 0)
+                if (!string.IsNullOrEmpty(bestChunkText))
                 {
                     // Found a chunk that fits
-                    var chunkText = full.Substring(0, best);
-                    var chunkCandidate = ("Chunk", chunkText, shouldIndent);
+                    var chunkCandidate = ("Chunk", bestChunkText, shouldIndent, state.ParagraphIndex, state.CharacterOffset);
                     float afterChunk = MeasureFragmentsHeight(fragments.Concat(new[] { chunkCandidate }));
                     float incChunk = afterChunk - currentMeasuredTotal;
 
                     fragments.Add(chunkCandidate);
                     currentMeasuredTotal = afterChunk;
 
-                    // Update character offset to track where we are in the paragraph
-                    state.CharacterOffset += best;
+                    // Update character offset based on original length (before trimming)
+                    state.CharacterOffset += bestOriginalLength;
 
                     // Trim leading whitespace from next chunk
                     while (state.CharacterOffset < fullParagraph.Length &&
@@ -378,7 +407,7 @@ namespace PaperFinch.Components
                     // Otherwise try to fit at least one word on a fresh page
                     var words = full.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     string firstWord = words.FirstOrDefault() ?? full.Substring(0, Math.Min(1, full.Length));
-                    var firstCandidate = ("Chunk", firstWord, shouldIndent);
+                    var firstCandidate = ("Chunk", firstWord, shouldIndent, state.ParagraphIndex, state.CharacterOffset);
                     float afterWord = MeasureFragmentsHeight(fragments.Concat(new[] { firstCandidate }));
                     float incWord = afterWord - currentMeasuredTotal;
 
@@ -490,7 +519,7 @@ namespace PaperFinch.Components
             };
         }
 
-        private void RenderMainContent(ColumnDescriptor col, List<(string Type, string Text, bool Indent)> fragments, bool isOdd, int displayPageNumber)
+        private void RenderMainContent(ColumnDescriptor col, List<(string Type, string Text, bool Indent, int ParagraphIndex, int RunOffset)> fragments, bool isOdd, int displayPageNumber)
         {
                 // Check if this page will have a chapter title (don't show page number if so)
                 bool hasTitle = fragments.Any(f => f.Type == "Title");
@@ -554,17 +583,127 @@ namespace PaperFinch.Components
                                     // Use non-breaking spaces which won't be trimmed
                                     int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
                                     string indentSpaces = new string('\u00A0', numSpaces);
-                                    t.Span(indentSpaces + f.Text).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize);
+                                    t.Span(indentSpaces);
                                 }
-                                else
-                                {
-                                    t.Span(f.Text).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize);
-                                }
+
+                                // Render the Markdown text that was stored in f.Text
+                                // This is the SAME text we measured, ensuring alignment
+                                RenderMarkdownInlines(t, f.Text);
+
                                 t.Justify();
                             });
                             break;
                     }
                 }
+        }
+
+        private void RenderMarkdownInlines(TextDescriptor textDescriptor, string markdown)
+        {
+            // Parse the markdown with hard line breaks enabled
+            var pipeline = new MarkdownPipelineBuilder()
+                .UseEmphasisExtras() // Enables ~~strikethrough~~ and other extras
+                .UseSoftlineBreakAsHardlineBreak() // Treat single newlines as line breaks
+                .Build();
+            var document = Markdown.Parse(markdown, pipeline);
+
+            // Process inline elements
+            foreach (var block in document)
+            {
+                if (block is ParagraphBlock paragraphBlock)
+                {
+                    RenderInlineContainer(textDescriptor, paragraphBlock.Inline);
+                }
+            }
+        }
+
+        private void RenderInlineContainer(TextDescriptor textDescriptor, ContainerInline? container)
+        {
+            if (container == null) return;
+
+            foreach (var inline in container)
+            {
+                RenderInline(textDescriptor, inline);
+            }
+        }
+
+        private void RenderInline(TextDescriptor textDescriptor, Inline inline)
+        {
+            switch (inline)
+            {
+                case LiteralInline literal:
+                    textDescriptor.Span(literal.Content.ToString())
+                        .FontFamily(_theme.BodyFont)
+                        .FontSize(_theme.BodyFontSize)
+                        .LineHeight((float)_theme.LineSpacing);
+                    break;
+
+                case EmphasisInline emphasis:
+                    // Recursively render all children with formatting applied
+                    RenderEmphasisChildren(textDescriptor, emphasis);
+                    break;
+
+                case HtmlInline html:
+                    // Skip HTML tags - they're just markup
+                    break;
+
+                case LineBreakInline lineBreak:
+                    // Render as a line break, not just a space
+                    // Check if it's a hard break (explicit) or soft break
+                    if (lineBreak.IsHard)
+                    {
+                        textDescriptor.Span("\n"); // Hard line break
+                    }
+                    else
+                    {
+                        textDescriptor.Span(" "); // Soft break becomes space
+                    }
+                    break;
+
+                case ContainerInline containerInline:
+                    RenderInlineContainer(textDescriptor, containerInline);
+                    break;
+
+                default:
+                    // For unknown inline types, try to render any children if it's a container
+                    if (inline is ContainerInline unknownContainer)
+                    {
+                        RenderInlineContainer(textDescriptor, unknownContainer);
+                    }
+                    break;
+            }
+        }
+
+        private void RenderEmphasisChildren(TextDescriptor textDescriptor, EmphasisInline emphasis)
+        {
+            foreach (var child in emphasis)
+            {
+                if (child is LiteralInline emphLiteral)
+                {
+                    var span = textDescriptor.Span(emphLiteral.Content.ToString());
+                    span.FontFamily(_theme.BodyFont);
+                    span.FontSize(_theme.BodyFontSize);
+                    span.LineHeight((float)_theme.LineSpacing);
+
+                    // Check the delimiter character to determine formatting
+                    // + = inserted (underline), * = italic, ** = bold
+                    if (emphasis.DelimiterChar == '+') // ++underline++
+                        span.Underline();
+                    else if (emphasis.DelimiterCount == 2) // **bold** or __bold__
+                        span.Bold();
+                    else if (emphasis.DelimiterCount == 1) // *italic* or _italic_
+                        span.Italic();
+                }
+                else if (child is EmphasisInline nestedEmphasis)
+                {
+                    // Handle nested emphasis (e.g., ***bold italic***)
+                    RenderEmphasisChildren(textDescriptor, nestedEmphasis);
+                }
+                else
+                {
+                    // Recursively handle other inline types
+                    RenderInline(textDescriptor, child);
+                }
+            }
         }
 
         private string TakeChunkAtWordBoundary(string text, int maxChars)

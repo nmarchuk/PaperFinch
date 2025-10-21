@@ -2,6 +2,7 @@
 using PaperFinch.Models;
 using PaperFinch.Services;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -96,7 +97,7 @@ namespace PaperFinch.ViewModels
                 {
                     Title = chapter.Title,
                     Subtitle = chapter.Subtitle,
-                    Content = chapter.Content,
+                    Content = chapter.Content ?? string.Empty,
                     ExcludeFromPageCount = chapter.ExcludeFromPageCount
                 });
             }

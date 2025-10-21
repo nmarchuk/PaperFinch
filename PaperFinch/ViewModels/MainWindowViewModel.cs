@@ -1,4 +1,5 @@
 ﻿using Avalonia.Data.Converters;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PaperFinch.Components;
@@ -62,10 +63,13 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (SetProperty(ref _currentPage, value))
             {
-                GoToFirstPageCommand.NotifyCanExecuteChanged();
-                GoToPreviousPageCommand.NotifyCanExecuteChanged();
-                GoToNextPageCommand.NotifyCanExecuteChanged();
-                GoToLastPageCommand.NotifyCanExecuteChanged();
+                Dispatcher.UIThread.Post(() =>
+                {
+                    GoToFirstPageCommand.NotifyCanExecuteChanged();
+                    GoToPreviousPageCommand.NotifyCanExecuteChanged();
+                    GoToNextPageCommand.NotifyCanExecuteChanged();
+                    GoToLastPageCommand.NotifyCanExecuteChanged();
+                });
             }
         }
     }
@@ -77,10 +81,13 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (SetProperty(ref _totalPages, value))
             {
-                GoToFirstPageCommand.NotifyCanExecuteChanged();
-                GoToPreviousPageCommand.NotifyCanExecuteChanged();
-                GoToNextPageCommand.NotifyCanExecuteChanged();
-                GoToLastPageCommand.NotifyCanExecuteChanged();
+                Dispatcher.UIThread.Post(() =>
+                {
+                    GoToFirstPageCommand.NotifyCanExecuteChanged();
+                    GoToPreviousPageCommand.NotifyCanExecuteChanged();
+                    GoToNextPageCommand.NotifyCanExecuteChanged();
+                    GoToLastPageCommand.NotifyCanExecuteChanged();
+                });
             }
         }
     }
@@ -206,7 +213,14 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 foreach (ChapterViewModel chapter in e.NewItems)
                 {
-                    chapter.PropertyChanged += (cs, ce) => QueueAutoRegenerate();
+                    chapter.PropertyChanged += (cs, ce) =>
+                    {
+                        // Don't regenerate on Content changes - only on Title, Subtitle, or ExcludeFromPageCount
+                        if (ce.PropertyName != nameof(ChapterViewModel.Content))
+                        {
+                            QueueAutoRegenerate();
+                        }
+                    };
                 }
             }
             QueueAutoRegenerate();
@@ -215,7 +229,14 @@ public partial class MainWindowViewModel : ViewModelBase
         // Subscribe to existing chapter changes
         foreach (var chapter in Project.Chapters)
         {
-            chapter.PropertyChanged += (s, e) => QueueAutoRegenerate();
+            chapter.PropertyChanged += (s, e) =>
+            {
+                // Don't regenerate on Content changes - only on Title, Subtitle, or ExcludeFromPageCount
+                if (e.PropertyName != nameof(ChapterViewModel.Content))
+                {
+                    QueueAutoRegenerate();
+                }
+            };
         }
 
         // Subscribe to project metadata changes
@@ -363,7 +384,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 UpdatePageInfo();
             }
 
-            ExportPdfCommand.NotifyCanExecuteChanged();
+            // Update command state on UI thread
+            Dispatcher.UIThread.Post(() => ExportPdfCommand.NotifyCanExecuteChanged());
         }
         catch (Exception ex)
         {
@@ -576,6 +598,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
+            // Remember which chapter is currently selected
+            var selectedChapterIndex = Project.SelectedChapter != null
+                ? Project.Chapters.IndexOf(Project.SelectedChapter)
+                : -1;
+
             var theme = CreateThemeFromCurrentSettings("ProjectTheme");
             var updatedProject = Project.ToModel(SelectedProject.Name, theme);
 
@@ -586,7 +613,17 @@ public partial class MainWindowViewModel : ViewModelBase
             if (index >= 0)
             {
                 Projects[index] = updatedProject;
-                SelectedProject = updatedProject;
+
+                // Temporarily disable the property change to prevent LoadProjectIntoUI from being called
+                var currentProject = _selectedProject;
+                _selectedProject = updatedProject;
+                OnPropertyChanged(nameof(SelectedProject));
+
+                // Restore the selected chapter
+                if (selectedChapterIndex >= 0 && selectedChapterIndex < Project.Chapters.Count)
+                {
+                    Project.SelectedChapter = Project.Chapters[selectedChapterIndex];
+                }
             }
 
             PageInfo = $"Project '{SelectedProject.Name}' saved";
@@ -799,11 +836,14 @@ public partial class MainWindowViewModel : ViewModelBase
         TotalPages = count;
         UpdatePageInfo();
 
-        // Notify that can-execute status may have changed
-        GoToFirstPageCommand.NotifyCanExecuteChanged();
-        GoToPreviousPageCommand.NotifyCanExecuteChanged();
-        GoToNextPageCommand.NotifyCanExecuteChanged();
-        GoToLastPageCommand.NotifyCanExecuteChanged();
+        // Notify that can-execute status may have changed (on UI thread)
+        Dispatcher.UIThread.Post(() =>
+        {
+            GoToFirstPageCommand.NotifyCanExecuteChanged();
+            GoToPreviousPageCommand.NotifyCanExecuteChanged();
+            GoToNextPageCommand.NotifyCanExecuteChanged();
+            GoToLastPageCommand.NotifyCanExecuteChanged();
+        });
     }
 
     private byte[] GenerateMultiChapterPdfDocument(IEnumerable<ChapterViewModel> chapters, PdfTheme theme)
@@ -880,54 +920,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         return stream.ToArray();
     }
-    private byte[] GeneratePdfDocument(string chapterTitle, string chapterSubtitle, string content, PdfTheme theme)
-    {
-        using var stream = new MemoryStream();
-        var (width, height) = theme.TrimSize.GetDimensions();
-
-        Document.Create(container =>
-        {
-            container.Page(page =>
-            {
-                page.Size(width, height, Unit.Inch);
-                page.PageColor(Colors.White);
-
-                // Set top and bottom margins
-                page.MarginTop((float)theme.TopMargin, Unit.Inch);
-                page.MarginBottom((float)theme.BottomMargin, Unit.Inch);
-
-                // Default text style
-                page.DefaultTextStyle(x => x
-                    .FontFamily(theme.BodyFont)
-                    .FontSize(theme.BodyFontSize)
-                    .LineHeight((float)theme.LineSpacing));
-
-                // Use dynamic component that manages its own pagination
-                page.Content().Dynamic(new AlternatingMarginContent(
-                    chapterTitle,
-                    chapterSubtitle,
-                    content,
-                    theme,
-                    0, // no offset for single chapter
-                    false, // no page numbers for single chapter mode
-                    Project.BookTitle,
-                    Project.BookAuthor
-                ));
-
-                page.Footer()
-                    .AlignCenter()
-                    .Text(x =>
-                    {
-                        x.Span("Page ");
-                        x.CurrentPageNumber();
-                        x.Span(" of ");
-                        x.TotalPages();
-                    });
-            });
-        }).GeneratePdf(stream);
-
-        return stream.ToArray();
-    }
+    // Legacy method - removed after switching to Markdown
 }
 
 public class TrimSizeItem
