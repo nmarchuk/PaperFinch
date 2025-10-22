@@ -23,7 +23,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly FontService _fontService;
     private readonly ProjectService _projectService;
 
-    private string _pageInfo = "No PDF loaded";
+    private string _pageInfo = "Initializing...";
     private int _currentPage = 0;
     private int _totalPages = 0;
     private byte[]? _currentPdfBytes;
@@ -35,6 +35,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private const int BaseDpi = 150; // Fixed DPI for rendering
 
     private Dictionary<ChapterViewModel, int> _chapterStartPages = new();
+    private Dictionary<string, int> _chapterStartPagesByTitle = new(); // Keyed by chapter title for TOC generation
 
     private ThemeViewModel _themeVM = new ThemeViewModel();
     public ThemeViewModel Theme
@@ -344,8 +345,54 @@ public partial class MainWindowViewModel : ViewModelBase
 
             var theme = CreateThemeFromCurrentSettings("Current");
 
-            // Generate the PDF with all chapters on a thread-pool thread so UI stays responsive
-            byte[] pdfBytes = await Task.Run(() => GenerateMultiChapterPdfDocument(Project.Chapters, theme));
+            // Check if any chapter is marked as Table of Contents
+            var tocChapter = Project.Chapters.FirstOrDefault(ch => ch.IsTableOfContents);
+
+            byte[] pdfBytes;
+
+            if (tocChapter != null)
+            {
+                // Two-pass generation for TOC
+                // Temporarily disable auto-regeneration to prevent infinite loop
+                bool wasAutoRegenerateEnabled = _autoRegenerateEnabled;
+                _autoRegenerateEnabled = false;
+
+                try
+                {
+                    // Clear the title-based dictionary before starting
+                    _chapterStartPagesByTitle.Clear();
+
+                    // Pass 1: Generate with placeholder TOC to collect page numbers
+                    string originalTocContent = tocChapter.Content;
+                    tocChapter.Content = "Generating table of contents...";
+
+                    // Generate first pass and collect page numbers
+                    await Task.Run(() => GenerateMultiChapterPdfDocument(Project.Chapters, theme));
+
+                    // Generate TOC content based on collected page numbers
+                    // IMPORTANT: Do this BEFORE Pass 2, which will clear _chapterStartPages
+                    var tocContent = GenerateTableOfContentsContent(Project.Chapters.ToList(), theme, theme.ShowSubtitlesInTOC);
+
+                    // Update the TOC chapter content
+                    tocChapter.Content = tocContent;
+
+                    // Pass 2: Regenerate with actual TOC content
+                    pdfBytes = await Task.Run(() => GenerateMultiChapterPdfDocument(Project.Chapters, theme));
+
+                    // Note: We keep the generated TOC content in the chapter
+                    // The user can see it and it will be regenerated on next PDF generation
+                }
+                finally
+                {
+                    // Re-enable auto-regeneration
+                    _autoRegenerateEnabled = wasAutoRegenerateEnabled;
+                }
+            }
+            else
+            {
+                // Single-pass generation (no TOC)
+                pdfBytes = await Task.Run(() => GenerateMultiChapterPdfDocument(Project.Chapters, theme));
+            }
 
             if (LoadPdfAction == null)
             {
@@ -846,11 +893,47 @@ public partial class MainWindowViewModel : ViewModelBase
         });
     }
 
+    private string GenerateTableOfContentsContent(List<ChapterViewModel> chapters, PdfTheme theme, bool showSubtitles)
+    {
+        var tocLines = new List<string>();
+        int chapterNumber = 0;
+
+        foreach (var chapter in chapters)
+        {
+            // Skip TOC chapters and excluded chapters
+            if (chapter.IsTableOfContents || chapter.ExcludeFromPageCount)
+                continue;
+
+            chapterNumber++;
+
+            // Get the page number for this chapter using title as key
+            if (_chapterStartPagesByTitle.TryGetValue(chapter.Title, out int pageNum))
+            {
+                // Use a special separator that we can parse in the renderer
+                // Format: "1. Chapter Title|||5" or "1. Chapter Title: Subtitle|||5"
+                // We'll use ||| as a separator that won't appear in normal text
+                string titleText = $"{chapterNumber}. {chapter.Title}";
+
+                // Add subtitle if enabled and present
+                if (showSubtitles && !string.IsNullOrWhiteSpace(chapter.Subtitle))
+                {
+                    titleText += $": {chapter.Subtitle}"; // Italicize subtitle
+                }
+
+                string line = $"{titleText}|||{pageNum}";
+                tocLines.Add(line);
+            }
+        }
+
+        return string.Join("\n\n", tocLines);
+    }
+
     private byte[] GenerateMultiChapterPdfDocument(IEnumerable<ChapterViewModel> chapters, PdfTheme theme)
     {
         using var stream = new MemoryStream();
         var (width, height) = theme.TrimSize.GetDimensions();
         _chapterStartPages.Clear();
+        // Don't clear _chapterStartPagesByTitle here - we need it to persist between passes for TOC generation
 
         var chapterList = chapters.ToList();
 
@@ -900,6 +983,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         Action<int> onFirstPage = (pageNum) =>
                         {
                             _chapterStartPages[chapterRef] = pageNum;
+                            _chapterStartPagesByTitle[chapterRef.Title] = pageNum; // Also store by title for TOC
                         };
 
                         col.Item().Dynamic(new AlternatingMarginContent(
@@ -911,7 +995,9 @@ public partial class MainWindowViewModel : ViewModelBase
                             showPageNumbers,
                             Project.BookTitle,
                             Project.BookAuthor,
-                            onFirstPage
+                            onFirstPage,
+                            chapter.IsTableOfContents, // Don't indent paragraphs in TOC
+                            chapter.NoIndent // Don't indent paragraphs if user disabled it
                         ));
                     }
                 });

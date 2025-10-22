@@ -34,8 +34,10 @@ namespace PaperFinch.Components
         private readonly Action<int>? _onFirstPageCallback;
         private bool _firstPageReported = false;
         private readonly List<string> _paragraphs; // Plain text paragraphs parsed from Markdown
+        private readonly bool _isTableOfContents;
+        private readonly bool _noIndent;
 
-        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string markdownContent, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false, string bookTitle = "", string bookAuthor = "", Action<int>? onFirstPage = null)
+        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string markdownContent, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false, string bookTitle = "", string bookAuthor = "", Action<int>? onFirstPage = null, bool isTableOfContents = false, bool noIndent = false)
         {
             _chapterTitle = chapterTitle;
             _chapterSubtitle = chapterSubtitle;
@@ -46,6 +48,8 @@ namespace PaperFinch.Components
             _bookTitle = bookTitle;
             _bookAuthor = bookAuthor;
             _onFirstPageCallback = onFirstPage;
+            _isTableOfContents = isTableOfContents;
+            _noIndent = noIndent;
 
             // Parse Markdown into paragraphs
             _paragraphs = ParseMarkdownToParagraphs(markdownContent ?? string.Empty);
@@ -303,6 +307,14 @@ namespace PaperFinch.Components
                 var fullParagraph = _paragraphs[state.ParagraphIndex];
 
                 // Get the remaining text in this paragraph starting from our character offset
+                if (state.CharacterOffset >= fullParagraph.Length)
+                {
+                    // We've consumed the entire paragraph
+                    state.ParagraphIndex++;
+                    state.CharacterOffset = 0;
+                    continue;
+                }
+
                 var full = fullParagraph.Substring(state.CharacterOffset);
 
                 if (string.IsNullOrWhiteSpace(full))
@@ -315,7 +327,8 @@ namespace PaperFinch.Components
                 // First paragraph (index 0) should NOT be indented
                 // All subsequent paragraphs (index > 0) SHOULD be indented
                 // BUT: if we're continuing a paragraph from previous page (CharacterOffset > 0), don't indent
-                bool shouldIndent = state.ParagraphIndex > 0 && state.CharacterOffset == 0;
+                // ALSO: Table of Contents chapters and NoIndent chapters should never have paragraph indents
+                bool shouldIndent = !_isTableOfContents && !_noIndent && state.ParagraphIndex > 0 && state.CharacterOffset == 0;
 
                 // Try whole paragraph
                 var candidatePara = ("Para", full, shouldIndent, state.ParagraphIndex, state.CharacterOffset);
@@ -335,7 +348,6 @@ namespace PaperFinch.Components
                 // Binary search for largest chunk that fits in remaining space
                 int low = 1, high = full.Length;
                 string bestChunkText = string.Empty;
-                int bestOriginalLength = 0; // Track length in original text before TrimEnd
                 while (low <= high)
                 {
                     int mid = (low + high) / 2;
@@ -350,12 +362,6 @@ namespace PaperFinch.Components
                     if (incChunk <= remaining)
                     {
                         bestChunkText = candidateText;
-                        // Find the original length before trimming
-                        // TakeChunkAtWordBoundary cuts at word boundary and trims
-                        // We need to know where we are in the original `full` text
-                        int cutPos = full.LastIndexOf(' ', Math.Min(mid, full.Length - 1));
-                        if (cutPos <= 0) cutPos = Math.Min(mid, full.Length);
-                        bestOriginalLength = cutPos;
                         low = mid + 1;
                     }
                     else
@@ -374,10 +380,19 @@ namespace PaperFinch.Components
                     fragments.Add(chunkCandidate);
                     currentMeasuredTotal = afterChunk;
 
-                    // Update character offset based on original length (before trimming)
-                    state.CharacterOffset += bestOriginalLength;
+                    // Calculate how much of the original text to skip
+                    // The bestChunkText is trimmed, but we need to advance past it in the full paragraph
+                    int chunkLengthInFull = bestChunkText.Length;
 
-                    // Trim leading whitespace from next chunk
+                    // Skip any trailing whitespace after the chunk text in the original full text
+                    while (chunkLengthInFull < full.Length && char.IsWhiteSpace(full[chunkLengthInFull]))
+                    {
+                        chunkLengthInFull++;
+                    }
+
+                    state.CharacterOffset += chunkLengthInFull;
+
+                    // Trim leading whitespace from next chunk (redundant but safe)
                     while (state.CharacterOffset < fullParagraph.Length &&
                            char.IsWhiteSpace(fullParagraph[state.CharacterOffset]))
                     {
@@ -441,12 +456,6 @@ namespace PaperFinch.Components
                     }
                 }
             }
-
-            // Footer if finished - REMOVED, no longer needed
-            // if (state.ParagraphIndex >= _paragraphs.Count)
-            // {
-            //     ...footer code removed...
-            // }
 
             // Final render (single CreateElement)
             var content = context.CreateElement(element =>
@@ -575,23 +584,61 @@ namespace PaperFinch.Components
                         case "Para":
                         case "Chunk":
                             isFirstFragment = false;
-                            col.Item().PaddingBottom(8).Text(t =>
+
+                            // Special rendering for TOC entries with page numbers
+                            if (_isTableOfContents && f.Text.Contains("|||"))
                             {
-                                // Apply first-line indent using non-breaking spaces
-                                if (f.Indent)
+                                col.Item().PaddingBottom(8).Row(row =>
                                 {
-                                    // Use non-breaking spaces which won't be trimmed
-                                    int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
-                                    string indentSpaces = new string('\u00A0', numSpaces);
-                                    t.Span(indentSpaces);
-                                }
+                                    var parts = f.Text.Split(new[] { "|||" }, StringSplitOptions.None);
+                                    if (parts.Length == 2)
+                                    {
+                                        // Left column: chapter title with dots
+                                        row.RelativeItem().Text(t =>
+                                        {
+                                            t.Span(parts[0].Trim())
+                                                .FontFamily(_theme.BodyFont)
+                                                .FontSize(_theme.BodyFontSize);
+                                            t.Span(" ")
+                                                .FontFamily(_theme.BodyFont)
+                                                .FontSize(_theme.BodyFontSize);
+                                        });
 
-                                // Render the Markdown text that was stored in f.Text
-                                // This is the SAME text we measured, ensuring alignment
-                                RenderMarkdownInlines(t, f.Text);
+                                        // Right column: page number (right-aligned)
+                                        row.ConstantItem(30).Text(t =>
+                                        {
+                                            t.Span(parts[1].Trim())
+                                                .FontFamily(_theme.BodyFont)
+                                                .FontSize(_theme.BodyFontSize);
+                                            t.AlignRight();
+                                        });
+                                    }
+                                });
+                            }
+                            else
+                            {
+                                col.Item().PaddingBottom(8).Text(t =>
+                                {
+                                    // Apply first-line indent using non-breaking spaces
+                                    if (f.Indent)
+                                    {
+                                        // Use non-breaking spaces which won't be trimmed
+                                        int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
+                                        string indentSpaces = new string('\u00A0', numSpaces);
+                                        t.Span(indentSpaces);
+                                    }
 
-                                t.Justify();
-                            });
+                                    // Render the Markdown text that was stored in f.Text
+                                    // This is the SAME text we measured, ensuring alignment
+                                    RenderMarkdownInlines(t, f.Text);
+
+                                    // Table of Contents should use left alignment so spaces aren't distributed
+                                    if (_isTableOfContents)
+                                        t.AlignLeft();
+                                    else
+                                        t.Justify();
+                                });
+                            }
                             break;
                     }
                 }

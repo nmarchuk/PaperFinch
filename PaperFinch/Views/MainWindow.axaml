@@ -203,6 +203,16 @@
                                     </StackPanel>
                                 </StackPanel>
                             </TabItem>
+
+                            <TabItem Header="Misc">
+                                <StackPanel Margin="5" Spacing="8">
+                                    <TextBlock Text="Table of Contents" FontWeight="Bold" FontSize="14"/>
+
+                                    <CheckBox Content="Show subtitles in Table of Contents"
+                                              IsChecked="{Binding Theme.ShowSubtitlesInTOC, Mode=TwoWay}"
+                                              Margin="0,5,0,0"/>
+                                </StackPanel>
+                            </TabItem>
                         </TabControl>
 
                         <Separator Margin="0,10"/>
@@ -260,12 +270,8 @@
                             <TextBlock Text="Chapter Subtitle:"/>
                             <TextBox Text="{Binding Project.SelectedChapter.Subtitle, Mode=TwoWay, FallbackValue=''}" HorizontalAlignment="Stretch"/>
 
-                            <CheckBox Content="Exclude from page numbering (e.g., title page, copyright page)"
-                                      IsChecked="{Binding Project.SelectedChapter.ExcludeFromPageCount, Mode=TwoWay, FallbackValue=False}"
-                                      Margin="0,5,0,0"/>
-
                             <TextBlock Text="Content (Markdown):"/>
-                            <TextBlock Text="**bold** *italic* ++underline++" FontSize="11" Foreground="Gray" Margin="0,2,0,5"/>
+                            <TextBlock Text="**bold** *italic* ++underline++ \ skip formatting" FontSize="11" Foreground="Gray" Margin="0,2,0,5"/>
 
                             <Border BorderBrush="Gray" BorderThickness="1" Height="500" Width="800">
                                 <avaloniaEdit:TextEditor x:Name="ContentEditor"
@@ -283,6 +289,19 @@
                                        FontStyle="Italic"
                                        TextWrapping="Wrap"
                                        Margin="0,10,0,0"/>
+
+                             <CheckBox Content="Front matter (eg. Copyright page). These pages must be at the front of your document and are excluded from page numbering."
+                                      IsChecked="{Binding Project.SelectedChapter.ExcludeFromPageCount, Mode=TwoWay, FallbackValue=False}"
+                                      Margin="0,5,0,0"/>
+
+                            <CheckBox Content="Table of Contents. PaperFinch will automatically fill this in for you. Should be part of your Front Matter."
+                                      IsChecked="{Binding Project.SelectedChapter.IsTableOfContents, Mode=TwoWay, FallbackValue=False}"
+                                      Margin="0,5,0,0"/>
+
+                            <CheckBox Content="Don't indent paragraphs in this chapter."
+                                      IsChecked="{Binding Project.SelectedChapter.NoIndent, Mode=TwoWay, FallbackValue=False}"
+                                      Margin="0,5,0,0"/>
+
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>

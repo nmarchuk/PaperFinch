@@ -74,6 +74,9 @@ namespace PaperFinch.Models
         // Page Number Settings
         public PageNumberPosition PageNumberPosition { get; set; } = PageNumberPosition.Top;
 
+        // Misc. Settings
+        public bool ShowSubtitlesInTOC { get; set; } = false;
+
         public PdfTheme Clone()
         {
             return new PdfTheme
@@ -105,7 +108,8 @@ namespace PaperFinch.Models
                 LeftPageHeaderCapitalize = LeftPageHeaderCapitalize,
                 RightPageHeaderContent = RightPageHeaderContent,
                 RightPageHeaderCapitalize = RightPageHeaderCapitalize,
-                PageNumberPosition = PageNumberPosition
+                PageNumberPosition = PageNumberPosition,
+                ShowSubtitlesInTOC = ShowSubtitlesInTOC
             };
         }
     }

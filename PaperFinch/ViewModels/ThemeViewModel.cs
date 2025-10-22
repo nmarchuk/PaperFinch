@@ -40,6 +40,7 @@ namespace PaperFinch.ViewModels
         private HeaderContentType _rightPageHeaderContent = HeaderContentType.Title;
         private bool _rightPageHeaderCapitalize = true;
         private PageNumberPositionItem _selectedPageNumberPosition = new PageNumberPositionItem { Position = PageNumberPosition.Top, DisplayName = "Top" };
+        private bool _showSubtitlesInTOC = false;
 
         public double InsideMargin
         {
@@ -203,6 +204,12 @@ namespace PaperFinch.ViewModels
             set => SetProperty(ref _selectedPageNumberPosition, value);
         }
 
+        public bool ShowSubtitlesInTOC
+        {
+            get => _showSubtitlesInTOC;
+            set => SetProperty(ref _showSubtitlesInTOC, value);
+        }
+
         // Create a PdfTheme instance from current ThemeViewModel values
         public PdfTheme ToPdfTheme(string name)
         {
@@ -235,7 +242,8 @@ namespace PaperFinch.ViewModels
                 LeftPageHeaderCapitalize = LeftPageHeaderCapitalize,
                 RightPageHeaderContent = RightPageHeaderContent,
                 RightPageHeaderCapitalize = RightPageHeaderCapitalize,
-                PageNumberPosition = SelectedPageNumberPosition?.Position ?? PageNumberPosition.Top
+                PageNumberPosition = SelectedPageNumberPosition?.Position ?? PageNumberPosition.Top,
+                ShowSubtitlesInTOC = ShowSubtitlesInTOC
             };
         }
 
@@ -270,6 +278,7 @@ namespace PaperFinch.ViewModels
             LeftPageHeaderCapitalize = theme.LeftPageHeaderCapitalize;
             RightPageHeaderContent = theme.RightPageHeaderContent;
             RightPageHeaderCapitalize = theme.RightPageHeaderCapitalize;
+            ShowSubtitlesInTOC = theme.ShowSubtitlesInTOC;
 
             if (availablePageNumberPositions != null)
             {

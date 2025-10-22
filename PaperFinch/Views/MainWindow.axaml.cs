@@ -114,8 +114,8 @@ public partial class MainWindow : Window
                 return result ?? false;
             };
 
-            // Optional: Auto-generate on startup
-            vm.GeneratePdfCommand.Execute(null);
+            // Optional: Auto-generate on startup (with a small delay to let UI settle)
+            Dispatcher.UIThread.Post(() => vm.GeneratePdfCommand.Execute(null));
         }
     }
 

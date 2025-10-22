@@ -98,7 +98,9 @@ namespace PaperFinch.ViewModels
                     Title = chapter.Title,
                     Subtitle = chapter.Subtitle,
                     Content = chapter.Content ?? string.Empty,
-                    ExcludeFromPageCount = chapter.ExcludeFromPageCount
+                    ExcludeFromPageCount = chapter.ExcludeFromPageCount,
+                    IsTableOfContents = chapter.IsTableOfContents,
+                    NoIndent = chapter.NoIndent
                 });
             }
 
@@ -113,10 +115,12 @@ namespace PaperFinch.ViewModels
                 Title = c.Title,
                 Subtitle = c.Subtitle,
                 Content = c.Content,
-                ExcludeFromPageCount = c.ExcludeFromPageCount
+                ExcludeFromPageCount = c.ExcludeFromPageCount,
+                IsTableOfContents = c.IsTableOfContents,
+                NoIndent = c.NoIndent
             }).ToList();
 
-            return _projectService.CreateProjectFromChapters(
+            var project = _projectService.CreateProjectFromChapters(
                 name ?? BookTitle,
                 theme,
                 BookTitle,
@@ -125,6 +129,8 @@ namespace PaperFinch.ViewModels
                 BookPublisherName,
                 BookPublisherLink,
                 chapters);
+
+            return project;
         }
 
         public Task SaveToFileAsync(PdfTheme theme, string? name = null)
@@ -152,6 +158,8 @@ namespace PaperFinch.ViewModels
         private string _subtitle = string.Empty;
         private string _content = string.Empty;
         private bool _excludeFromPageCount = false;
+        private bool _isTableOfContents = false;
+        private bool _noIndent = false;
 
         public string Title
         {
@@ -175,6 +183,18 @@ namespace PaperFinch.ViewModels
         {
             get => _excludeFromPageCount;
             set => SetProperty(ref _excludeFromPageCount, value);
+        }
+
+        public bool IsTableOfContents
+        {
+            get => _isTableOfContents;
+            set => SetProperty(ref _isTableOfContents, value);
+        }
+
+        public bool NoIndent
+        {
+            get => _noIndent;
+            set => SetProperty(ref _noIndent, value);
         }
     }
 }
