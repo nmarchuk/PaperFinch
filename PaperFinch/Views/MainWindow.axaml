@@ -21,22 +21,24 @@
     
     <Grid ColumnDefinitions="2*,4*,1*" RowDefinitions="*">
         <!-- LEFT COLUMN: settings + actions -->
-        <Grid Grid.Column="0" Margin="10">
+        <Grid Grid.Column="0" Margin="15">
             <Grid RowDefinitions="Auto,*,Auto">
                 <TextBlock Grid.Row="0"
                            Text="PaperFinch"
-                           FontSize="20"
-                           FontWeight="Bold"
+                           FontSize="24"
+                           FontWeight="SemiBold"
                            VerticalAlignment="Center"
                            HorizontalAlignment="Left"
-                           Margin="10"/>
+                           Margin="5,10,5,15"/>
 
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="10">
-                        <TextBlock Text="Theme:" FontWeight="Bold" FontSize="14"/>
+                    <StackPanel Spacing="15">
+                        <TextBlock Text="Theme:" FontWeight="SemiBold" FontSize="14" Margin="0,5,0,0"/>
                         <ComboBox ItemsSource="{Binding Themes}"
                                   SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
-                                  HorizontalAlignment="Stretch">
+                                  HorizontalAlignment="Stretch"
+                                  CornerRadius="6"
+                                  Padding="10,6">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding Name}"/>
@@ -44,17 +46,17 @@
                             </ComboBox.ItemTemplate>
                         </ComboBox>
 
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <Button Content="Save Theme" Command="{Binding SaveThemeCommand}" MinWidth="100"/>
-                            <Button Content="Save As..." Command="{Binding SaveAsNewThemeCommand}" MinWidth="80"/>
-                            <Button Content="Delete" Command="{Binding DeleteThemeCommand}" MinWidth="80"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save Theme" Command="{Binding SaveThemeCommand}" MinWidth="100" Padding="12,6" CornerRadius="6"/>
+                            <Button Content="Save As..." Command="{Binding SaveAsNewThemeCommand}" MinWidth="80" Padding="12,6" CornerRadius="6"/>
+                            <Button Content="Delete" Command="{Binding DeleteThemeCommand}" MinWidth="80" Padding="12,6" CornerRadius="6"/>
                         </StackPanel>
 
                         <Separator Margin="0,10"/>
 
-                        <TabControl>
+                        <TabControl Padding="0,8,0,0">
                             <TabItem Header="Page">
-                                <StackPanel Margin="5" Spacing="8">
+                                <StackPanel Margin="10" Spacing="10">
                                     <TextBlock Text="Trim Size:"/>
                                     <ComboBox ItemsSource="{Binding TrimSizes}"
                                               SelectedItem="{Binding SelectedTrimSize, Mode=TwoWay}"
@@ -81,7 +83,7 @@
                             </TabItem>
 
                             <TabItem Header="Body Text">
-                                <StackPanel Margin="5" Spacing="8">
+                                <StackPanel Margin="10" Spacing="10">
                                     <TextBlock Text="Font:"/>
                                     <ComboBox ItemsSource="{Binding AvailableFonts}"
                                               SelectedItem="{Binding Theme.BodyFont, Mode=TwoWay}"
@@ -116,7 +118,7 @@
                             </TabItem>
 
                             <TabItem Header="Titles">
-                                <StackPanel Margin="5" Spacing="12">
+                                <StackPanel Margin="10" Spacing="12">
                                     <TextBlock Text="Chapter Heading Position" FontWeight="Bold" FontSize="14"/>
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="Top Offset (in):"/>
@@ -175,7 +177,7 @@
                             </TabItem>
 
                             <TabItem Header="Headers">
-                                <StackPanel Margin="5" Spacing="12">
+                                <StackPanel Margin="10" Spacing="12">
                                     <TextBlock Text="Page Numbers" FontWeight="Bold" FontSize="14"/>
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="Page Number Position:"/>
@@ -224,7 +226,7 @@
                             </TabItem>
 
                             <TabItem Header="Misc">
-                                <StackPanel Margin="5" Spacing="8">
+                                <StackPanel Margin="10" Spacing="10">
                                     <TextBlock Text="Table of Contents" FontWeight="Bold" FontSize="14"/>
 
                                     <CheckBox Content="Show subtitles in Table of Contents"
@@ -251,10 +253,12 @@
 
                     <Separator Margin="0,10"/>
 
-                    <TextBlock Text="Project:" FontWeight="Bold" FontSize="14"/>
+                    <TextBlock Text="Project:" FontWeight="SemiBold" FontSize="14" Margin="0,5,0,0"/>
                     <ComboBox ItemsSource="{Binding Projects}"
                               SelectedItem="{Binding SelectedProject, Mode=TwoWay}"
-                              HorizontalAlignment="Stretch">
+                              HorizontalAlignment="Stretch"
+                              CornerRadius="6"
+                              Padding="10,6">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Name}"/>
@@ -262,10 +266,10 @@
                         </ComboBox.ItemTemplate>
                     </ComboBox>
 
-                    <StackPanel Orientation="Horizontal" Spacing="5">
-                        <Button Content="Save Project" Command="{Binding SaveProjectCommand}" MinWidth="100"/>
-                        <Button Content="Save As..." Command="{Binding SaveAsNewProjectCommand}" MinWidth="80"/>
-                        <Button Content="Delete" Command="{Binding DeleteProjectCommand}" MinWidth="80"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Save Project" Command="{Binding SaveProjectCommand}" MinWidth="100" Padding="12,6" CornerRadius="6"/>
+                        <Button Content="Save As..." Command="{Binding SaveAsNewProjectCommand}" MinWidth="80" Padding="12,6" CornerRadius="6"/>
+                        <Button Content="Delete" Command="{Binding DeleteProjectCommand}" MinWidth="80" Padding="12,6" CornerRadius="6"/>
                     </StackPanel>
 
                     <TextBlock Margin="0,10,0,0"
@@ -281,7 +285,7 @@
                 <!-- COMPOSITION TAB -->
                 <TabItem Header="Composition">
                     <ScrollViewer>
-                        <StackPanel Spacing="10" Margin="6">
+                        <StackPanel Spacing="15" Margin="15">
                             <TextBlock Text="Chapter Content" FontWeight="Bold" FontSize="14"/>
                             <TextBlock Text="Chapter Title:"/>
                             <TextBox Text="{Binding Project.SelectedChapter.Title, Mode=TwoWay, FallbackValue=''}" HorizontalAlignment="Stretch"/>
@@ -295,7 +299,10 @@
                             <Border BorderBrush="Gray" BorderThickness="1" Height="500"
                                     HorizontalAlignment="Stretch"
                                     MaxWidth="1200"
-                                    Margin="50,0">
+                                    Margin="50,0"
+                                    CornerRadius="8"
+                                    BoxShadow="0 2 10 0 #15000000"
+                                    Padding="2">
                                 <avaloniaEdit:TextEditor x:Name="ContentEditor"
                                                          HorizontalAlignment="Stretch"
                                                          VerticalAlignment="Stretch"
@@ -331,7 +338,7 @@
                 <!-- METADATA TAB -->
                 <TabItem Header="Metadata">
                     <ScrollViewer>
-                        <StackPanel Spacing="10" Margin="6">
+                        <StackPanel Spacing="15" Margin="15">
                             <TextBlock Text="Book Metadata" FontWeight="Bold" FontSize="14"/>
                             <TextBlock Text="Title:"/>
                             <TextBox Text="{Binding Project.BookTitle, Mode=TwoWay}" HorizontalAlignment="Stretch"/>
@@ -355,8 +362,11 @@
                 <TabItem Header="Preview">
                     <Grid RowDefinitions="*,Auto">
                         <!-- PDF Preview with loading overlay -->
-                        <Grid Grid.Row="0">
-                            <Border Background="LightGray" Padding="10">
+                        <Grid Grid.Row="0" Margin="15">
+                            <Border Background="LightGray"
+                                    Padding="15"
+                                    CornerRadius="10"
+                                    BoxShadow="0 4 12 0 #20000000">
                                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                                     <controls:PdfPreviewControl x:Name="PdfPreview" MaxWidth="700" MaxHeight="900"/>
                                 </ScrollViewer>
@@ -385,11 +395,11 @@
                             <Panel Grid.Column="0"/>
 
                             <!-- Center: Navigation buttons -->
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
-                                <Button Content="&lt;&lt; First" Command="{Binding GoToFirstPageCommand}" MinWidth="70"/>
-                                <Button Content="&lt; Previous" Command="{Binding GoToPreviousPageCommand}" MinWidth="80"/>
-                                <Button Content="Next &gt;" Command="{Binding GoToNextPageCommand}" MinWidth="80"/>
-                                <Button Content="Last &gt;&gt;" Command="{Binding GoToLastPageCommand}" MinWidth="70"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                                <Button Content="&lt;&lt; First" Command="{Binding GoToFirstPageCommand}" MinWidth="70" Padding="10,6" CornerRadius="6"/>
+                                <Button Content="&lt; Previous" Command="{Binding GoToPreviousPageCommand}" MinWidth="80" Padding="10,6" CornerRadius="6"/>
+                                <Button Content="Next &gt;" Command="{Binding GoToNextPageCommand}" MinWidth="80" Padding="10,6" CornerRadius="6"/>
+                                <Button Content="Last &gt;&gt;" Command="{Binding GoToLastPageCommand}" MinWidth="70" Padding="10,6" CornerRadius="6"/>
                             </StackPanel>
 
                             <!-- Right: Zoom slider -->

@@ -304,7 +304,25 @@ public partial class MainWindowViewModel : ViewModelBase
 
             // Apply theme
             if (project.Theme != null)
+            {
                 ApplyTheme(project.Theme);
+
+                // Update the selected theme in the combo box to match the project's theme
+                // The project stores the actual theme name, so we can match directly
+                var matchingTheme = Themes.FirstOrDefault(t => t.Name == project.Theme.Name);
+                if (matchingTheme != null)
+                {
+                    // Use the backing field to avoid triggering ApplyTheme again
+                    _selectedTheme = matchingTheme;
+                    OnPropertyChanged(nameof(SelectedTheme));
+                }
+                else
+                {
+                    // Theme not found (maybe it was deleted) - fall back to Default
+                    _selectedTheme = Themes.FirstOrDefault(t => t.Name == "Default");
+                    OnPropertyChanged(nameof(SelectedTheme));
+                }
+            }
 
             PageInfo = $"Project loaded: {project.Name}";
 
@@ -650,7 +668,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 ? Project.Chapters.IndexOf(Project.SelectedChapter)
                 : -1;
 
-            var theme = CreateThemeFromCurrentSettings("ProjectTheme");
+            // Use the actual selected theme name when saving, so we can restore it on load
+            var themeName = SelectedTheme?.Name ?? "Default";
+            var theme = CreateThemeFromCurrentSettings(themeName);
             var updatedProject = Project.ToModel(SelectedProject.Name, theme);
 
             await _projectService.SaveProjectAsync(updatedProject);
@@ -702,7 +722,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            var theme = CreateThemeFromCurrentSettings("ProjectTheme");
+            // Use the actual selected theme name when saving, so we can restore it on load
+            var themeName = SelectedTheme?.Name ?? "Default";
+            var theme = CreateThemeFromCurrentSettings(themeName);
             var newProject = Project.ToModel(projectName, theme);
 
             await _projectService.SaveProjectAsync(newProject);
