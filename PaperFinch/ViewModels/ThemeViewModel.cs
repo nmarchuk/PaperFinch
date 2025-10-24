@@ -19,6 +19,10 @@ namespace PaperFinch.ViewModels
         private int _bodyFontSize = 12;
         private double _lineSpacing = 1.6;
         private double _paragraphIndent = 0.3;
+        private bool _doubleSpaceParagraphs = false;
+        private bool _dropCaps = false;
+        private string _dropCapFont = "Times New Roman";
+        private bool _leadWithSmallCaps = false;
         private double _chapterHeadingTopOffset = 2.0;
         private double _chapterTitleBottomSpacing = 0.2;
         private double _chapterSubtitleBottomSpacing = 0.5;
@@ -96,6 +100,31 @@ namespace PaperFinch.ViewModels
             get => _paragraphIndent;
             set => SetProperty(ref _paragraphIndent, value);
         }
+
+        public bool DoubleSpaceParagraphs
+        {
+            get => _doubleSpaceParagraphs;
+            set => SetProperty(ref _doubleSpaceParagraphs, value);
+        }
+
+        public bool DropCaps
+        {
+            get => _dropCaps;
+            set => SetProperty(ref _dropCaps, value);
+        }
+
+        public string DropCapFont
+        {
+            get => _dropCapFont;
+            set => SetProperty(ref _dropCapFont, value);
+        }
+
+        public bool LeadWithSmallCaps
+        {
+            get => _leadWithSmallCaps;
+            set => SetProperty(ref _leadWithSmallCaps, value);
+        }
+
         public double ChapterHeadingTopOffset
         {
             get => _chapterHeadingTopOffset;
@@ -225,6 +254,10 @@ namespace PaperFinch.ViewModels
                 BodyFontSize = BodyFontSize,
                 LineSpacing = LineSpacing,
                 ParagraphIndent = ParagraphIndent,
+                DoubleSpaceParagraphs = DoubleSpaceParagraphs,
+                DropCaps = DropCaps,
+                DropCapFont = DropCapFont,
+                LeadWithSmallCaps = LeadWithSmallCaps,
                 ChapterHeadingTopOffset = ChapterHeadingTopOffset,
                 ChapterTitleBottomSpacing = ChapterTitleBottomSpacing,
                 ChapterSubtitleBottomSpacing = ChapterSubtitleBottomSpacing,
@@ -261,6 +294,10 @@ namespace PaperFinch.ViewModels
             BodyFontSize = theme.BodyFontSize;
             LineSpacing = theme.LineSpacing;
             ParagraphIndent = theme.ParagraphIndent;
+            DoubleSpaceParagraphs = theme.DoubleSpaceParagraphs;
+            DropCaps = theme.DropCaps;
+            DropCapFont = theme.DropCapFont;
+            LeadWithSmallCaps = theme.LeadWithSmallCaps;
             ChapterHeadingTopOffset = theme.ChapterHeadingTopOffset;
             ChapterTitleBottomSpacing = theme.ChapterTitleBottomSpacing;
             ChapterSubtitleBottomSpacing = theme.ChapterSubtitleBottomSpacing;

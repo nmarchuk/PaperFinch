@@ -93,6 +93,23 @@
 
                                     <TextBlock Text="Paragraph Indent (in):"/>
                                     <NumericUpDown Value="{Binding Theme.ParagraphIndent, Mode=TwoWay}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" HorizontalAlignment="Stretch"/>
+
+                                    <CheckBox Content="Double-space between paragraphs"
+                                              IsChecked="{Binding Theme.DoubleSpaceParagraphs, Mode=TwoWay}"
+                                              Margin="0,5,0,0"/>
+
+                                    <CheckBox Content="Drop caps (large first letter spanning 2 lines)"
+                                              IsChecked="{Binding Theme.DropCaps, Mode=TwoWay}"
+                                              Margin="0,5,0,0"/>
+
+                                    <CheckBox Content="Lead with small caps (first 4 words capitalized)"
+                                              IsChecked="{Binding Theme.LeadWithSmallCaps, Mode=TwoWay}"
+                                              Margin="0,5,0,0"/>
+
+                                    <TextBlock Text="Drop Cap Font:" Margin="0,8,0,0"/>
+                                    <ComboBox ItemsSource="{Binding AvailableFonts}"
+                                              SelectedItem="{Binding Theme.DropCapFont, Mode=TwoWay}"
+                                              HorizontalAlignment="Stretch"/>
                                 </StackPanel>
                             </TabItem>
 

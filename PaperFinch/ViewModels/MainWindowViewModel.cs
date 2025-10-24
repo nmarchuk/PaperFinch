@@ -997,7 +997,8 @@ public partial class MainWindowViewModel : ViewModelBase
                             Project.BookAuthor,
                             onFirstPage,
                             chapter.IsTableOfContents, // Don't indent paragraphs in TOC
-                            chapter.NoIndent // Don't indent paragraphs if user disabled it
+                            chapter.NoIndent, // Don't indent paragraphs if user disabled it
+                            chapter.ExcludeFromPageCount // Don't use drop caps in front matter
                         ));
                     }
                 });
@@ -1006,7 +1007,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
         return stream.ToArray();
     }
-    // Legacy method - removed after switching to Markdown
 }
 
 public class TrimSizeItem

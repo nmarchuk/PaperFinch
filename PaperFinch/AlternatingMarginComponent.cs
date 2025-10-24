@@ -36,8 +36,9 @@ namespace PaperFinch.Components
         private readonly List<string> _paragraphs; // Plain text paragraphs parsed from Markdown
         private readonly bool _isTableOfContents;
         private readonly bool _noIndent;
+        private readonly bool _excludeFromPageCount;
 
-        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string markdownContent, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false, string bookTitle = "", string bookAuthor = "", Action<int>? onFirstPage = null, bool isTableOfContents = false, bool noIndent = false)
+        public AlternatingMarginContent(string chapterTitle, string chapterSubtitle, string markdownContent, Models.PdfTheme theme, int pageNumberOffset = 0, bool showPageNumbers = false, string bookTitle = "", string bookAuthor = "", Action<int>? onFirstPage = null, bool isTableOfContents = false, bool noIndent = false, bool excludeFromPageCount = false)
         {
             _chapterTitle = chapterTitle;
             _chapterSubtitle = chapterSubtitle;
@@ -50,6 +51,7 @@ namespace PaperFinch.Components
             _onFirstPageCallback = onFirstPage;
             _isTableOfContents = isTableOfContents;
             _noIndent = noIndent;
+            _excludeFromPageCount = excludeFromPageCount;
 
             // Parse Markdown into paragraphs
             _paragraphs = ParseMarkdownToParagraphs(markdownContent ?? string.Empty);
@@ -213,23 +215,99 @@ namespace PaperFinch.Components
                                  case "Para":
                                  case "Chunk":
                                      isFirst = false;
-                                     col.Item().PaddingBottom(8).Text(t =>
-                                     {
-                                         // Strip Markdown formatting for accurate measurement
-                                         string textForMeasurement = StripMarkdownFormatting(f.Text);
 
-                                         if (f.Indent)
+                                     // Check if this is the first paragraph's first fragment (for drop caps)
+                                     bool isFirstParagraphStart = (f.ParagraphIndex == 0 && f.RunOffset == 0);
+                                     bool shouldUseDropCap = _theme.DropCaps && isFirstParagraphStart && !_isTableOfContents && !_noIndent && !_excludeFromPageCount && !string.IsNullOrEmpty(f.Text);
+
+                                     // Calculate paragraph spacing: normal (8pt) or double-spaced (blank line based on font size * line spacing)
+                                     float paragraphSpacing = _theme.DoubleSpaceParagraphs
+                                         ? (float)(_theme.BodyFontSize * _theme.LineSpacing)
+                                         : 8f;
+
+                                     if (shouldUseDropCap)
+                                     {
+                                         // Measure drop cap layout with text wrapping
+                                         col.Item().PaddingBottom(paragraphSpacing).Column(dropCapCol =>
                                          {
-                                             int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
-                                             string indentSpaces = new string('\u00A0', numSpaces);
-                                             t.Span(indentSpaces + textForMeasurement).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize).LineHeight((float)_theme.LineSpacing);
-                                         }
-                                         else
+                                             dropCapCol.Spacing(0); // Remove spacing between items so text flows naturally
+
+                                             var (firstCharMarkdown, remainingMarkdown) = SplitFirstCharacter(f.Text);
+                                             float dropCapSize = (float)(_theme.BodyFontSize * _theme.LineSpacing * 2);
+                                             float dropCapWidth = dropCapSize * 0.7f;
+
+                                             // Calculate actual available width: full width minus margins minus drop cap width minus padding
+                                             float actualTextWidth = availWidth - ((leftMargin + rightMargin) * 72f); // Convert inches to points
+                                             float textWidthBesideDropCap = actualTextWidth - dropCapWidth - 3;
+
+                                             var (textBesideDropCap, textBelowDropCap) = SplitTextForDropCap(
+                                                 remainingMarkdown,
+                                                 textWidthBesideDropCap,
+                                                 dropCapSize,
+                                                 _theme.BodyFont,
+                                                 _theme.BodyFontSize,
+                                                 (float)_theme.LineSpacing,
+                                                 _theme.LeadWithSmallCaps);
+
+                                             // First row: Drop cap + text beside it
+                                             dropCapCol.Item().Row(row =>
+                                             {
+                                                 // Left: drop cap
+                                                 row.ConstantItem(dropCapWidth).AlignTop().PaddingTop(-dropCapSize * 0.25f).Text(t =>
+                                                 {
+                                                     RenderMarkdownInlines(t, firstCharMarkdown, _theme.DropCapFont, dropCapSize);
+                                                 });
+
+                                                 // Right: first portion of text
+                                                 row.RelativeItem().AlignTop().PaddingLeft(3).Text(t =>
+                                                 {
+                                                     if (!string.IsNullOrEmpty(textBesideDropCap))
+                                                     {
+                                                         // Apply small caps if enabled (drop cap already handles first character)
+                                                         if (_theme.LeadWithSmallCaps)
+                                                             RenderMarkdownWithSmallCaps(t, textBesideDropCap);
+                                                         else
+                                                             RenderMarkdownInlines(t, textBesideDropCap);
+                                                         t.Justify();
+                                                     }
+                                                 });
+                                             });
+
+                                             // Second row: Remaining text at full width
+                                             if (!string.IsNullOrEmpty(textBelowDropCap))
+                                             {
+                                                 // Use PaddingTop to adjust spacing - pull text up to remove gap
+                                                 // Line spacing creates some space, so we compensate
+                                                 float lineSpacingOffset = (float)(_theme.BodyFontSize * (_theme.LineSpacing - 1) * 1.15f);
+                                                 dropCapCol.Item().PaddingTop(-lineSpacingOffset).Text(t =>
+                                                 {
+                                                     RenderMarkdownInlines(t, textBelowDropCap);
+                                                     t.Justify();
+                                                 });
+                                             }
+                                         });
+                                     }
+                                     else
+                                     {
+                                         col.Item().PaddingBottom(paragraphSpacing).Text(t =>
                                          {
-                                             t.Span(textForMeasurement).FontFamily(_theme.BodyFont).FontSize(_theme.BodyFontSize).LineHeight((float)_theme.LineSpacing);
-                                         }
-                                         t.Justify();
-                                     });
+                                             if (f.Indent)
+                                             {
+                                                 int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
+                                                 string indentSpaces = new string('\u00A0', numSpaces);
+                                                 t.Span(indentSpaces);
+                                             }
+
+                                             // Use the same rendering approach as the actual render to ensure measurements match
+                                             bool shouldUseSmallCaps = _theme.LeadWithSmallCaps && (f.ParagraphIndex == 0 && f.RunOffset == 0) && !_isTableOfContents && !_noIndent && !_excludeFromPageCount;
+                                             if (shouldUseSmallCaps)
+                                                 RenderMarkdownWithSmallCaps(t, f.Text);
+                                             else
+                                                 RenderMarkdownInlines(t, f.Text);
+
+                                             t.Justify();
+                                         });
+                                     }
                                      break;
                              }
                          }
@@ -483,7 +561,7 @@ namespace PaperFinch.Components
                             .PaddingRight(rightMargin, Unit.Inch)
                             .Column(col =>
                             {
-                                RenderMainContent(col, fragments, isOdd, displayPageNumber);
+                                RenderMainContent(col, fragments, isOdd, displayPageNumber, availWidth, leftMargin, rightMargin);
                             });
 
                         // Footer layer - positioned at absolute bottom (where we reserved 22 points)
@@ -513,7 +591,7 @@ namespace PaperFinch.Components
 
                     margin.Column(col =>
                     {
-                        RenderMainContent(col, fragments, isOdd, displayPageNumber);
+                        RenderMainContent(col, fragments, isOdd, displayPageNumber, availWidth, leftMargin, rightMargin);
                     });
                 }
             });
@@ -528,7 +606,7 @@ namespace PaperFinch.Components
             };
         }
 
-        private void RenderMainContent(ColumnDescriptor col, List<(string Type, string Text, bool Indent, int ParagraphIndex, int RunOffset)> fragments, bool isOdd, int displayPageNumber)
+        private void RenderMainContent(ColumnDescriptor col, List<(string Type, string Text, bool Indent, int ParagraphIndex, int RunOffset)> fragments, bool isOdd, int displayPageNumber, float availWidth, float leftMargin, float rightMargin)
         {
                 // Check if this page will have a chapter title (don't show page number if so)
                 bool hasTitle = fragments.Any(f => f.Type == "Title");
@@ -617,27 +695,113 @@ namespace PaperFinch.Components
                             }
                             else
                             {
-                                col.Item().PaddingBottom(8).Text(t =>
+                                // Check if this is the first paragraph's first fragment (for drop caps)
+                                bool isFirstParagraphStart = (f.ParagraphIndex == 0 && f.RunOffset == 0);
+                                bool shouldUseDropCap = _theme.DropCaps && isFirstParagraphStart && !_isTableOfContents && !_noIndent && !_excludeFromPageCount && !string.IsNullOrEmpty(f.Text);
+
+                                // Calculate paragraph spacing: normal (8pt) or double-spaced (blank line based on font size * line spacing)
+                                float paragraphSpacing = _theme.DoubleSpaceParagraphs
+                                    ? (float)(_theme.BodyFontSize * _theme.LineSpacing)
+                                    : 8f;
+
+                                if (shouldUseDropCap)
                                 {
-                                    // Apply first-line indent using non-breaking spaces
-                                    if (f.Indent)
+                                    // Drop cap rendering with proper text wrapping
+                                    col.Item().PaddingBottom(paragraphSpacing).Column(dropCapCol =>
                                     {
-                                        // Use non-breaking spaces which won't be trimmed
-                                        int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
-                                        string indentSpaces = new string('\u00A0', numSpaces);
-                                        t.Span(indentSpaces);
-                                    }
+                                        dropCapCol.Spacing(0); // Remove spacing between items so text flows naturally
 
-                                    // Render the Markdown text that was stored in f.Text
-                                    // This is the SAME text we measured, ensuring alignment
-                                    RenderMarkdownInlines(t, f.Text);
+                                        // Extract first character and remaining text
+                                        var (firstCharMarkdown, remainingMarkdown) = SplitFirstCharacter(f.Text);
 
-                                    // Table of Contents should use left alignment so spaces aren't distributed
-                                    if (_isTableOfContents)
-                                        t.AlignLeft();
-                                    else
-                                        t.Justify();
-                                });
+                                        // Calculate drop cap size (2 lines tall)
+                                        float dropCapSize = (float)(_theme.BodyFontSize * _theme.LineSpacing * 2);
+                                        float dropCapWidth = dropCapSize * 0.7f;
+
+                                        // Calculate available width for text beside drop cap
+                                        // Use actual available width based on page width and margins
+                                        float actualTextWidth = availWidth - ((leftMargin + rightMargin) * 72f); // Convert inches to points
+                                        float textWidthBesideDropCap = actualTextWidth - dropCapWidth - 3;
+
+                                        // Split the remaining text into two parts:
+                                        // 1. Text that fits beside the drop cap (roughly 2 lines)
+                                        // 2. Text that continues below
+                                        var (textBesideDropCap, textBelowDropCap) = SplitTextForDropCap(
+                                            remainingMarkdown,
+                                            textWidthBesideDropCap,
+                                            dropCapSize,
+                                            _theme.BodyFont,
+                                            _theme.BodyFontSize,
+                                            (float)_theme.LineSpacing,
+                                            _theme.LeadWithSmallCaps);
+
+                                        // First row: Drop cap + text beside it
+                                        dropCapCol.Item().Row(row =>
+                                        {
+                                            // Left: Drop cap
+                                            row.ConstantItem(dropCapWidth).AlignTop().PaddingTop(-dropCapSize * 0.25f).Text(t =>
+                                            {
+                                                RenderMarkdownInlines(t, firstCharMarkdown, _theme.DropCapFont, dropCapSize);
+                                            });
+
+                                            // Right: First portion of text
+                                            row.RelativeItem().AlignTop().PaddingLeft(3).Text(t =>
+                                            {
+                                                if (!string.IsNullOrEmpty(textBesideDropCap))
+                                                {
+                                                    // Apply small caps if enabled (drop cap already handles first character)
+                                                    if (_theme.LeadWithSmallCaps)
+                                                        RenderMarkdownWithSmallCaps(t, textBesideDropCap);
+                                                    else
+                                                        RenderMarkdownInlines(t, textBesideDropCap);
+                                                    t.Justify();
+                                                }
+                                            });
+                                        });
+
+                                        // Second row: Remaining text at full width (if any)
+                                        if (!string.IsNullOrEmpty(textBelowDropCap))
+                                        {
+                                            // Use PaddingTop to adjust spacing - pull text up to remove gap
+                                            // Line spacing creates some space, so we compensate
+                                            float lineSpacingOffset = (float)(_theme.BodyFontSize * (_theme.LineSpacing - 1) * 1.15f);
+                                            dropCapCol.Item().PaddingTop(-lineSpacingOffset).Text(t =>
+                                            {
+                                                RenderMarkdownInlines(t, textBelowDropCap);
+                                                t.Justify();
+                                            });
+                                        }
+                                    });
+                                }
+                                else
+                                {
+                                    col.Item().PaddingBottom(paragraphSpacing).Text(t =>
+                                    {
+                                        // Apply first-line indent using non-breaking spaces
+                                        if (f.Indent)
+                                        {
+                                            // Use non-breaking spaces which won't be trimmed
+                                            int numSpaces = (int)Math.Ceiling(_theme.ParagraphIndent * 8);
+                                            string indentSpaces = new string('\u00A0', numSpaces);
+                                            t.Span(indentSpaces);
+                                        }
+
+                                        // Render the Markdown text that was stored in f.Text
+                                        // This is the SAME text we measured, ensuring alignment
+                                        // Apply small caps for first paragraph if enabled
+                                        bool shouldUseSmallCaps = _theme.LeadWithSmallCaps && isFirstParagraphStart && !_isTableOfContents && !_noIndent && !_excludeFromPageCount;
+                                        if (shouldUseSmallCaps)
+                                            RenderMarkdownWithSmallCaps(t, f.Text);
+                                        else
+                                            RenderMarkdownInlines(t, f.Text);
+
+                                        // Table of Contents should use left alignment so spaces aren't distributed
+                                        if (_isTableOfContents)
+                                            t.AlignLeft();
+                                        else
+                                            t.Justify();
+                                    });
+                                }
                             }
                             break;
                     }
@@ -886,6 +1050,649 @@ namespace PaperFinch.Components
                 span.FontFamily(_theme.BodyFont);
                 span.FontSize(_theme.BodyFontSize);
             });
+        }
+
+        /// <summary>
+        /// Splits markdown text to extract the first character (preserving formatting) and the rest.
+        /// Handles cases like "**T**he" or "*I*t was" where first char has formatting.
+        /// </summary>
+        private (string firstChar, string remaining) SplitFirstCharacter(string markdown)
+        {
+            if (string.IsNullOrEmpty(markdown))
+                return (string.Empty, string.Empty);
+
+            // Simple approach: extract the first visible character
+            // Check if starts with formatting markers
+            var trimmed = markdown.TrimStart();
+
+            if (trimmed.StartsWith("**") || trimmed.StartsWith("__")) // Bold
+            {
+                // Find first character after opening markers
+                int markerLen = 2;
+                if (trimmed.Length > markerLen)
+                {
+                    string firstChar = trimmed.Substring(0, markerLen + 1); // "**T"
+
+                    // Check if we need to close the formatting around just this char
+                    // Look for the closing marker
+                    int closePos = trimmed.IndexOf(trimmed.Substring(0, markerLen), markerLen);
+
+                    if (closePos > markerLen) // Found closing marker
+                    {
+                        // Extract: "**T**"
+                        firstChar = trimmed.Substring(0, closePos + markerLen);
+                        string remaining = trimmed.Substring(closePos + markerLen);
+                        return (firstChar, remaining);
+                    }
+                    else
+                    {
+                        // No closing found, just take first char with opening marker
+                        firstChar = trimmed.Substring(0, markerLen + 1) + trimmed.Substring(0, markerLen); // "**T**"
+                        string remaining = trimmed.Substring(markerLen + 1);
+                        return (firstChar, remaining);
+                    }
+                }
+            }
+            else if (trimmed.StartsWith("*") || trimmed.StartsWith("_")) // Italic
+            {
+                int markerLen = 1;
+                if (trimmed.Length > markerLen)
+                {
+                    string firstChar = trimmed.Substring(0, markerLen + 1); // "*T"
+
+                    int closePos = trimmed.IndexOf(trimmed[0], markerLen);
+
+                    if (closePos > markerLen)
+                    {
+                        firstChar = trimmed.Substring(0, closePos + markerLen);
+                        string remaining = trimmed.Substring(closePos + markerLen);
+                        return (firstChar, remaining);
+                    }
+                    else
+                    {
+                        firstChar = trimmed.Substring(0, markerLen + 1) + trimmed[0]; // "*T*"
+                        string remaining = trimmed.Substring(markerLen + 1);
+                        return (firstChar, remaining);
+                    }
+                }
+            }
+            else if (trimmed.StartsWith("++")) // Underline
+            {
+                int markerLen = 2;
+                if (trimmed.Length > markerLen)
+                {
+                    string firstChar = trimmed.Substring(0, markerLen + 1) + "++"; // "++T++"
+                    string remaining = trimmed.Substring(markerLen + 1);
+
+                    // Look for closing
+                    int closePos = trimmed.IndexOf("++", markerLen);
+                    if (closePos > markerLen)
+                    {
+                        firstChar = trimmed.Substring(0, closePos + markerLen);
+                        remaining = trimmed.Substring(closePos + markerLen);
+                        return (firstChar, remaining);
+                    }
+
+                    return (firstChar, remaining);
+                }
+            }
+
+            // No formatting, just plain text
+            string first = trimmed.Substring(0, 1);
+            string rest = trimmed.Substring(1);
+            return (first, rest);
+        }
+
+        /// <summary>
+        /// Overload of RenderMarkdownInlines that allows custom font and size (for drop caps)
+        /// </summary>
+        private void RenderMarkdownInlines(TextDescriptor textDescriptor, string markdown, string customFont, float customSize)
+        {
+            var pipeline = new MarkdownPipelineBuilder()
+                .UseEmphasisExtras()
+                .UseSoftlineBreakAsHardlineBreak()
+                .Build();
+            var document = Markdown.Parse(markdown, pipeline);
+
+            foreach (var block in document)
+            {
+                if (block is ParagraphBlock paragraphBlock)
+                {
+                    RenderInlineContainerCustom(textDescriptor, paragraphBlock.Inline, customFont, customSize);
+                }
+            }
+        }
+
+        private void RenderInlineContainerCustom(TextDescriptor textDescriptor, ContainerInline? container, string customFont, float customSize)
+        {
+            if (container == null) return;
+
+            foreach (var inline in container)
+            {
+                RenderInlineCustom(textDescriptor, inline, customFont, customSize);
+            }
+        }
+
+        private void RenderInlineCustom(TextDescriptor textDescriptor, Inline inline, string customFont, float customSize)
+        {
+            switch (inline)
+            {
+                case LiteralInline literal:
+                    textDescriptor.Span(literal.Content.ToString())
+                        .FontFamily(customFont)
+                        .FontSize(customSize);
+                    break;
+
+                case EmphasisInline emphasis:
+                    RenderEmphasisChildrenCustom(textDescriptor, emphasis, customFont, customSize);
+                    break;
+
+                case LineBreakInline lineBreak:
+                    if (lineBreak.IsHard)
+                        textDescriptor.Span("\n");
+                    else
+                        textDescriptor.Span(" ");
+                    break;
+
+                case ContainerInline containerInline:
+                    RenderInlineContainerCustom(textDescriptor, containerInline, customFont, customSize);
+                    break;
+
+                default:
+                    if (inline is ContainerInline unknownContainer)
+                    {
+                        RenderInlineContainerCustom(textDescriptor, unknownContainer, customFont, customSize);
+                    }
+                    break;
+            }
+        }
+
+        private void RenderEmphasisChildrenCustom(TextDescriptor textDescriptor, EmphasisInline emphasis, string customFont, float customSize)
+        {
+            foreach (var child in emphasis)
+            {
+                if (child is LiteralInline literal)
+                {
+                    var span = textDescriptor.Span(literal.Content.ToString())
+                        .FontFamily(customFont)
+                        .FontSize(customSize);
+
+                    if (emphasis.DelimiterChar == '*' || emphasis.DelimiterChar == '_')
+                    {
+                        if (emphasis.DelimiterCount == 2)
+                            span.SemiBold();
+                        else if (emphasis.DelimiterCount == 1)
+                            span.Italic();
+                    }
+                    else if (emphasis.DelimiterChar == '~' && emphasis.DelimiterCount == 2)
+                    {
+                        span.Strikethrough();
+                    }
+                    else if (emphasis.DelimiterChar == '+' && emphasis.DelimiterCount == 2)
+                    {
+                        span.Underline();
+                    }
+                }
+                else if (child is EmphasisInline nestedEmphasis)
+                {
+                    RenderEmphasisChildrenCustom(textDescriptor, nestedEmphasis, customFont, customSize);
+                }
+                else
+                {
+                    RenderInlineCustom(textDescriptor, child, customFont, customSize);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Splits text for drop cap rendering - determines how much text fits beside the drop cap
+        /// and how much should flow below it using actual QuestPDF measurement.
+        /// </summary>
+        private (string textBeside, string textBelow) SplitTextForDropCap(
+            string markdown,
+            float availableWidth,
+            float dropCapHeight,
+            string font,
+            int fontSize,
+            float lineSpacing,
+            bool useSmallCaps = false)
+        {
+            if (string.IsNullOrEmpty(markdown))
+                return (string.Empty, string.Empty);
+
+            // Strip markdown for measurement purposes
+            string plainText = StripMarkdownFormatting(markdown);
+
+            // Split by words to build up text word-by-word
+            string[] words = plainText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (words.Length == 0)
+                return (markdown, string.Empty);
+
+            // Measure text word by word to find how much fits in the available space
+            int wordsThatFit = 0;
+            int lastSafeWordCount = 0;
+
+            for (int i = 1; i <= words.Length; i++)
+            {
+                string testText = string.Join(" ", words.Take(i));
+
+                // Measure this text, accounting for small caps if enabled
+                Size size;
+                if (useSmallCaps)
+                {
+                    size = MeasureTextWithSmallCaps(testText, font, fontSize, lineSpacing, availableWidth);
+                }
+                else
+                {
+                    size = MeasureText(testText, font, fontSize, lineSpacing, availableWidth);
+                }
+
+                // Calculate expected height for exactly 2 lines
+                float twoLineHeight = fontSize * lineSpacing * 2;
+
+                if (size.Height <= twoLineHeight)
+                {
+                    // Still within 2 lines
+                    lastSafeWordCount = i;
+                    wordsThatFit = i;
+                }
+                else if (size.Height <= dropCapHeight)
+                {
+                    // Within drop cap height but might be getting close to 3 lines
+                    // This is the boundary case - be conservative
+                    wordsThatFit = i;
+                }
+                else
+                {
+                    // Exceeded drop cap height, definitely too much
+                    // Use the last safe count if we have one
+                    if (lastSafeWordCount > 0)
+                    {
+                        wordsThatFit = lastSafeWordCount;
+                    }
+                    break;
+                }
+            }
+
+            // If no words fit (very unlikely), put first word anyway
+            if (wordsThatFit == 0)
+                wordsThatFit = 1;
+
+            // If all words fit, return everything
+            if (wordsThatFit >= words.Length)
+            {
+                return (markdown, string.Empty);
+            }
+
+            // Build the split based on word count
+            string textForBeside = string.Join(" ", words.Take(wordsThatFit));
+            string textForBelow = string.Join(" ", words.Skip(wordsThatFit));
+
+            // Now split the markdown at the corresponding position
+            // Find where textForBeside ends in the original markdown
+            string markdownLower = markdown.ToLower();
+            string textForBesideLower = textForBeside.ToLower();
+
+            int splitPoint = markdownLower.IndexOf(textForBesideLower);
+            if (splitPoint >= 0)
+            {
+                splitPoint += textForBeside.Length;
+
+                // Find next space to avoid cutting markdown formatting
+                while (splitPoint < markdown.Length && markdown[splitPoint] != ' ')
+                {
+                    splitPoint++;
+                }
+                if (splitPoint < markdown.Length)
+                    splitPoint++; // Skip the space
+            }
+            else
+            {
+                // Fallback: use character position from plain text
+                splitPoint = textForBeside.Length;
+            }
+
+            if (splitPoint >= markdown.Length)
+            {
+                return (markdown, string.Empty);
+            }
+
+            string markdownBeside = markdown.Substring(0, splitPoint).TrimEnd();
+            string markdownBelow = markdown.Substring(splitPoint).TrimStart();
+
+            return (markdownBeside, markdownBelow);
+        }
+
+        /// <summary>
+        /// Measures text with small caps applied to determine its rendered size at a given width.
+        /// </summary>
+        private Size MeasureTextWithSmallCaps(string text, string font, int fontSize, float lineSpacing, float constrainedWidth)
+        {
+            try
+            {
+                // Split text for small caps
+                var (smallCapsText, remainingText) = SplitForSmallCaps(text);
+
+                using (var paint = new SkiaSharp.SKPaint())
+                {
+                    paint.Typeface = SkiaSharp.SKTypeface.FromFamilyName(font);
+
+                    // Measure small caps portion (85% size, uppercase)
+                    float smallCapsFontSize = fontSize * 0.85f;
+                    float totalWidth = 0;
+                    float maxHeight = fontSize * lineSpacing;
+
+                    if (!string.IsNullOrEmpty(smallCapsText))
+                    {
+                        string upperText = StripMarkdownFormatting(smallCapsText).ToUpper();
+                        paint.TextSize = smallCapsFontSize;
+
+                        var smallCapsWords = upperText.Split(' ');
+                        foreach (var word in smallCapsWords)
+                        {
+                            totalWidth += paint.MeasureText(word + " ");
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(remainingText))
+                    {
+                        // Add space if we had small caps
+                        if (!string.IsNullOrEmpty(smallCapsText))
+                            totalWidth += paint.MeasureText(" ");
+
+                        // Measure remaining text at normal size
+                        paint.TextSize = fontSize;
+                        string plainRemaining = StripMarkdownFormatting(remainingText);
+                        var remainingWords = plainRemaining.Split(' ');
+                        foreach (var word in remainingWords)
+                        {
+                            totalWidth += paint.MeasureText(word + " ");
+                        }
+                    }
+
+                    // Simulate line wrapping with mixed font sizes
+                    float currentLineWidth = 0;
+                    float totalHeight = fontSize * lineSpacing;
+                    bool isFirstWordOnLine = true;
+
+                    // Process small caps words
+                    if (!string.IsNullOrEmpty(smallCapsText))
+                    {
+                        paint.TextSize = smallCapsFontSize;
+                        string upperText = StripMarkdownFormatting(smallCapsText).ToUpper();
+                        var smallCapsWords = upperText.Split(' ');
+
+                        foreach (var word in smallCapsWords)
+                        {
+                            float wordWidth = paint.MeasureText(word);
+                            float spaceWidth = paint.MeasureText(" ");
+                            float widthToAdd = isFirstWordOnLine ? wordWidth : (spaceWidth + wordWidth);
+
+                            if (currentLineWidth + widthToAdd > constrainedWidth && !isFirstWordOnLine)
+                            {
+                                currentLineWidth = wordWidth;
+                                totalHeight += fontSize * lineSpacing;
+                                isFirstWordOnLine = true;
+                            }
+                            else
+                            {
+                                currentLineWidth += widthToAdd;
+                                isFirstWordOnLine = false;
+                            }
+                        }
+                    }
+
+                    // Process remaining words at normal size
+                    if (!string.IsNullOrEmpty(remainingText))
+                    {
+                        paint.TextSize = fontSize;
+                        string plainRemaining = StripMarkdownFormatting(remainingText);
+                        var remainingWords = plainRemaining.Split(' ');
+
+                        foreach (var word in remainingWords)
+                        {
+                            float wordWidth = paint.MeasureText(word);
+                            float spaceWidth = paint.MeasureText(" ");
+                            float widthToAdd = isFirstWordOnLine ? wordWidth : (spaceWidth + wordWidth);
+
+                            if (currentLineWidth + widthToAdd > constrainedWidth && !isFirstWordOnLine)
+                            {
+                                currentLineWidth = wordWidth;
+                                totalHeight += fontSize * lineSpacing;
+                                isFirstWordOnLine = true;
+                            }
+                            else
+                            {
+                                currentLineWidth += widthToAdd;
+                                isFirstWordOnLine = false;
+                            }
+                        }
+                    }
+
+                    return new Size(currentLineWidth, totalHeight);
+                }
+            }
+            catch
+            {
+                // Fallback to regular measurement
+                return MeasureText(text, font, fontSize, lineSpacing, constrainedWidth);
+            }
+        }
+
+        /// <summary>
+        /// Measures text to determine its rendered size at a given width.
+        /// </summary>
+        private Size MeasureText(string text, string font, int fontSize, float lineSpacing, float constrainedWidth)
+        {
+            try
+            {
+                // Use SkiaSharp to measure text accurately
+                using (var paint = new SkiaSharp.SKPaint())
+                {
+                    paint.Typeface = SkiaSharp.SKTypeface.FromFamilyName(font);
+                    paint.TextSize = fontSize;
+
+                    // Measure each word and simulate line wrapping
+                    var words = text.Split(' ');
+                    float currentLineWidth = 0;
+                    float totalHeight = fontSize * lineSpacing; // Start with one line
+                    float maxWidth = 0;
+                    bool isFirstWordOnLine = true;
+
+                    foreach (var word in words)
+                    {
+                        // Measure word without trailing space first
+                        float wordWidth = paint.MeasureText(word);
+                        float spaceWidth = paint.MeasureText(" ");
+
+                        // Check if we need to add space before this word (not first word on line)
+                        float widthToAdd = isFirstWordOnLine ? wordWidth : (spaceWidth + wordWidth);
+
+                        if (currentLineWidth + widthToAdd > constrainedWidth && !isFirstWordOnLine)
+                        {
+                            // Word doesn't fit, start new line
+                            maxWidth = Math.Max(maxWidth, currentLineWidth);
+                            currentLineWidth = wordWidth;
+                            totalHeight += fontSize * lineSpacing;
+                            isFirstWordOnLine = true; // Reset for new line
+                        }
+                        else
+                        {
+                            currentLineWidth += widthToAdd;
+                            isFirstWordOnLine = false;
+                        }
+                    }
+
+                    maxWidth = Math.Max(maxWidth, currentLineWidth);
+
+                    return new Size(maxWidth, totalHeight);
+                }
+            }
+            catch
+            {
+                // If measurement fails, return a safe default
+                // Rough estimate: height = fontSize * lineSpacing * 2 (for 2 lines)
+                return new Size(constrainedWidth, fontSize * lineSpacing * 2);
+            }
+        }
+
+        /// <summary>
+        /// Splits markdown text into small caps portion (first 4 words or until punctuation) and remaining text.
+        /// </summary>
+        private (string smallCapsText, string remainingText) SplitForSmallCaps(string markdown)
+        {
+            if (string.IsNullOrEmpty(markdown))
+                return (string.Empty, string.Empty);
+
+            // Strip markdown to work with plain text for word counting
+            string plainText = StripMarkdownFormatting(markdown);
+
+            // Split into words
+            var words = new List<string>();
+            var currentWord = new System.Text.StringBuilder();
+
+            for (int i = 0; i < plainText.Length; i++)
+            {
+                char c = plainText[i];
+
+                // Check for terminating punctuation (period, comma, quote)
+                if (c == '.' || c == ',' || c == '"' || c == '\'' || c == '!' || c == '?')
+                {
+                    // Add current word if any
+                    if (currentWord.Length > 0)
+                    {
+                        words.Add(currentWord.ToString());
+                        currentWord.Clear();
+                    }
+                    // Include the punctuation with the last word
+                    if (words.Count > 0)
+                    {
+                        words[words.Count - 1] += c;
+                    }
+                    // Stop here - found terminating punctuation
+                    break;
+                }
+                else if (char.IsWhiteSpace(c))
+                {
+                    if (currentWord.Length > 0)
+                    {
+                        words.Add(currentWord.ToString());
+                        currentWord.Clear();
+
+                        // Stop if we have 4 words
+                        if (words.Count >= 4)
+                            break;
+                    }
+                }
+                else
+                {
+                    currentWord.Append(c);
+                }
+            }
+
+            // Add final word if any and haven't reached 4 yet
+            if (currentWord.Length > 0 && words.Count < 4)
+            {
+                words.Add(currentWord.ToString());
+            }
+
+            if (words.Count == 0)
+                return (string.Empty, markdown);
+
+            // Build the small caps portion (original markdown for these words)
+            string smallCapsPlainText = string.Join(" ", words);
+
+            // Find where this ends in the original markdown
+            int splitIndex = FindTextPositionInMarkdown(markdown, smallCapsPlainText);
+
+            if (splitIndex > 0 && splitIndex < markdown.Length)
+            {
+                string smallCapsPortion = markdown.Substring(0, splitIndex).TrimEnd();
+                string remaining = markdown.Substring(splitIndex).TrimStart();
+                return (smallCapsPortion, remaining);
+            }
+
+            // Fallback: return everything as small caps if we can't split properly
+            return (markdown, string.Empty);
+        }
+
+        /// <summary>
+        /// Finds the position in markdown where the plain text ends, accounting for markdown formatting.
+        /// </summary>
+        private int FindTextPositionInMarkdown(string markdown, string plainText)
+        {
+            string strippedMarkdown = StripMarkdownFormatting(markdown);
+            int plainIndex = strippedMarkdown.IndexOf(plainText);
+
+            if (plainIndex < 0)
+                return -1;
+
+            int targetLength = plainIndex + plainText.Length;
+
+            // Walk through markdown counting non-formatting characters
+            int markdownIndex = 0;
+            int plainCount = 0;
+
+            while (markdownIndex < markdown.Length && plainCount < targetLength)
+            {
+                // Check if we're at a markdown formatting character
+                if (markdownIndex + 1 < markdown.Length)
+                {
+                    string twoChar = markdown.Substring(markdownIndex, 2);
+                    if (twoChar == "**" || twoChar == "__" || twoChar == "++")
+                    {
+                        markdownIndex += 2;
+                        continue;
+                    }
+                }
+
+                if (markdown[markdownIndex] == '*' || markdown[markdownIndex] == '_' || markdown[markdownIndex] == '+')
+                {
+                    markdownIndex++;
+                    continue;
+                }
+
+                // Regular character
+                plainCount++;
+                markdownIndex++;
+            }
+
+            // Skip any trailing whitespace and get past the last word
+            while (markdownIndex < markdown.Length && char.IsWhiteSpace(markdown[markdownIndex]))
+            {
+                markdownIndex++;
+            }
+
+            return markdownIndex;
+        }
+
+        /// <summary>
+        /// Renders markdown text with small caps styling for first N words.
+        /// </summary>
+        private void RenderMarkdownWithSmallCaps(TextDescriptor textDescriptor, string markdown)
+        {
+            var (smallCapsText, remainingText) = SplitForSmallCaps(markdown);
+
+            if (!string.IsNullOrEmpty(smallCapsText))
+            {
+                // Render small caps portion - uppercase with slightly smaller font
+                string upperText = StripMarkdownFormatting(smallCapsText).ToUpper();
+                textDescriptor.Span(upperText)
+                    .FontFamily(_theme.BodyFont)
+                    .FontSize(_theme.BodyFontSize * 0.85f)  // Slightly smaller for small caps effect
+                    .LineHeight((float)_theme.LineSpacing);
+            }
+
+            if (!string.IsNullOrEmpty(remainingText))
+            {
+                // Add space between small caps and remaining text
+                if (!string.IsNullOrEmpty(smallCapsText))
+                    textDescriptor.Span(" ");
+
+                // Render remaining text normally
+                RenderMarkdownInlines(textDescriptor, remainingText);
+            }
         }
     }
 }
