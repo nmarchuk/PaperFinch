@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PaperFinch.Views.SaveBeforeCloseDialog"
+        Title="Unsaved Changes"
+        Width="450"
+        Height="180"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <StackPanel Margin="20" Spacing="15">
+        <TextBlock x:Name="MessageTextBlock"
+                   Text="You may have unsaved changes. Would you like to save your project before closing?"
+                   FontSize="14"
+                   TextWrapping="Wrap"/>
+
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="10">
+            <Button Content="Save and Quit"
+                    Width="120"
+                    Click="SaveAndQuitButton_Click"
+                    IsDefault="True"/>
+            <Button Content="Quit Without Saving"
+                    Width="150"
+                    Click="QuitWithoutSavingButton_Click"/>
+            <Button Content="Cancel"
+                    Width="80"
+                    Click="CancelButton_Click"
+                    IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

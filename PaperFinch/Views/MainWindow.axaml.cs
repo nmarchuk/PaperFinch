@@ -1,10 +1,13 @@
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
+using AvaloniaEdit.Editing;
 using AvaloniaEdit.Rendering;
 using AvaloniaEdit.TextMate;
 using PaperFinch.ViewModels;
@@ -24,6 +27,9 @@ public partial class MainWindow : Window
 
         // Wait for DataContext to be set, then attach actions
         this.Opened += OnWindowOpened;
+
+        // Handle window closing to prompt for save
+        this.Closing += OnWindowClosing;
     }
 
     private void OnWindowOpened(object? sender, EventArgs e)
@@ -184,6 +190,78 @@ public partial class MainWindow : Window
         {
             ContentEditor.Document.Text = vm.Project.SelectedChapter.Content ?? string.Empty;
         }
+
+        // Add keyboard shortcuts for markdown formatting
+        SetupKeyboardShortcuts();
+    }
+
+    private void SetupKeyboardShortcuts()
+    {
+        // Use tunnel routing strategy to intercept keys before they're consumed by AvaloniaEdit
+        // See: https://github.com/AvaloniaUI/AvaloniaEdit/issues/383
+        ContentEditor.AddHandler(KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    private void OnEditorKeyDown(object? sender, KeyEventArgs e)
+    {
+        // Check for Ctrl (Windows/Linux) or Cmd (Mac)
+        bool isModifierPressed = e.KeyModifiers.HasFlag(KeyModifiers.Control) ||
+                                 e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+
+        if (!isModifierPressed)
+            return;
+
+        switch (e.Key)
+        {
+            case Key.B:
+                InsertMarkdownFormatting("**", "**");
+                e.Handled = true;
+                break;
+            case Key.I:
+                InsertMarkdownFormatting("*", "*");
+                e.Handled = true;
+                break;
+            case Key.U:
+                InsertMarkdownFormatting("++", "++");
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void InsertMarkdownFormatting(string prefix, string suffix)
+    {
+        if (ContentEditor.Document == null)
+            return;
+
+        var textArea = ContentEditor.TextArea;
+        var selection = textArea.Selection;
+        var document = ContentEditor.Document;
+
+        if (!selection.IsEmpty)
+        {
+            // Wrap selected text
+            var selectedText = selection.GetText();
+            var startOffset = selection.SurroundingSegment.Offset;
+            var length = selection.SurroundingSegment.Length;
+
+            document.Replace(startOffset, length, prefix + selectedText + suffix);
+
+            // Update selection to highlight the newly formatted text (excluding markers)
+            textArea.Selection = Selection.Create(textArea, startOffset + prefix.Length,
+                                                   startOffset + prefix.Length + selectedText.Length);
+            textArea.Caret.Offset = startOffset + prefix.Length + selectedText.Length;
+        }
+        else
+        {
+            // Insert markers at cursor position
+            var caretOffset = textArea.Caret.Offset;
+            document.Insert(caretOffset, prefix + suffix);
+
+            // Move cursor between the markers
+            textArea.Caret.Offset = caretOffset + prefix.Length;
+        }
+
+        textArea.Focus();
     }
 
     // Custom colorizer to highlight Markdown formatted text
@@ -226,6 +304,54 @@ public partial class MainWindow : Window
                     });
                 }
             }
+        }
+    }
+
+    private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        // Cancel the close event initially so we can show the dialog
+        e.Cancel = true;
+
+        if (DataContext is not MainWindowViewModel vm)
+        {
+            // If no ViewModel, just close
+            e.Cancel = false;
+            return;
+        }
+
+        // Show the save confirmation dialog
+        var dialog = new SaveBeforeCloseDialog();
+        var result = await dialog.ShowDialog<SaveBeforeCloseResult>(this);
+
+        switch (result)
+        {
+            case SaveBeforeCloseResult.SaveAndQuit:
+                // Save theme first (if not default)
+                if (vm.SelectedTheme != null && vm.SelectedTheme.Name != "Default")
+                {
+                    await vm.SaveThemeCommand.ExecuteAsync(null);
+                }
+
+                // Save project (if not default)
+                if (vm.SelectedProject != null && vm.SelectedProject.Name != "Default")
+                {
+                    await vm.SaveProjectCommand.ExecuteAsync(null);
+                }
+
+                // Now close the window
+                this.Closing -= OnWindowClosing; // Remove handler to avoid recursion
+                Close();
+                break;
+
+            case SaveBeforeCloseResult.QuitWithoutSaving:
+                // Close without saving
+                this.Closing -= OnWindowClosing; // Remove handler to avoid recursion
+                Close();
+                break;
+
+            case SaveBeforeCloseResult.Cancel:
+                // Do nothing, window stays open (e.Cancel is already true)
+                break;
         }
     }
 }
