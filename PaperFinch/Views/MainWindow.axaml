@@ -9,15 +9,17 @@
         x:Class="PaperFinch.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="PDF Generator with Live Preview"
-        Width="1600"
+        Width="1400"
+        MinWidth="1000"
         Height="900"
+        MinHeight="600"
         Icon="/Assets/avalonia-logo.ico">
 
     <Design.DataContext>
         <vm:MainWindowViewModel/>
     </Design.DataContext>
     
-    <Grid ColumnDefinitions="450,*,250" RowDefinitions="*">
+    <Grid ColumnDefinitions="2*,4*,1*" RowDefinitions="*">
         <!-- LEFT COLUMN: settings + actions -->
         <Grid Grid.Column="0" Margin="10">
             <Grid RowDefinitions="Auto,*,Auto">
@@ -43,9 +45,9 @@
                         </ComboBox>
 
                         <StackPanel Orientation="Horizontal" Spacing="5">
-                            <Button Content="Save Theme" Command="{Binding SaveThemeCommand}" Width="120"/>
-                            <Button Content="Save As..." Command="{Binding SaveAsNewThemeCommand}" Width="85"/>
-                            <Button Content="Delete" Command="{Binding DeleteThemeCommand}" Width="85"/>
+                            <Button Content="Save Theme" Command="{Binding SaveThemeCommand}" MinWidth="100"/>
+                            <Button Content="Save As..." Command="{Binding SaveAsNewThemeCommand}" MinWidth="80"/>
+                            <Button Content="Delete" Command="{Binding DeleteThemeCommand}" MinWidth="80"/>
                         </StackPanel>
 
                         <Separator Margin="0,10"/>
@@ -98,11 +100,11 @@
                                               IsChecked="{Binding Theme.DoubleSpaceParagraphs, Mode=TwoWay}"
                                               Margin="0,5,0,0"/>
 
-                                    <CheckBox Content="Drop caps (large first letter spanning 2 lines)"
+                                    <CheckBox Content="Drop caps"
                                               IsChecked="{Binding Theme.DropCaps, Mode=TwoWay}"
                                               Margin="0,5,0,0"/>
 
-                                    <CheckBox Content="Lead with small caps (first 4 words capitalized)"
+                                    <CheckBox Content="Lead with small caps"
                                               IsChecked="{Binding Theme.LeadWithSmallCaps, Mode=TwoWay}"
                                               Margin="0,5,0,0"/>
 
@@ -142,7 +144,7 @@
                                             <CheckBox Content="Bold" IsChecked="{Binding Theme.ChapterTitleBold, Mode=TwoWay}"/>
                                             <CheckBox Content="Italic" IsChecked="{Binding Theme.ChapterTitleItalic, Mode=TwoWay}"/>
                                             <TextBlock Text="Alignment:" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                                            <ComboBox ItemsSource="{Binding TextAlignments}" SelectedItem="{Binding Theme.ChapterTitleAlignment, Mode=TwoWay}" HorizontalAlignment="Left" Width="100"/>
+                                            <ComboBox ItemsSource="{Binding TextAlignments}" SelectedItem="{Binding Theme.ChapterTitleAlignment, Mode=TwoWay}" HorizontalAlignment="Left" MinWidth="100"/>
                                         </StackPanel>
                                     </StackPanel>
 
@@ -166,7 +168,7 @@
                                             <CheckBox Content="Bold" IsChecked="{Binding Theme.ChapterSubtitleBold, Mode=TwoWay}"/>
                                             <CheckBox Content="Italic" IsChecked="{Binding Theme.ChapterSubtitleItalic, Mode=TwoWay}"/>
                                             <TextBlock Text="Alignment:" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                                            <ComboBox ItemsSource="{Binding TextAlignments}" SelectedItem="{Binding Theme.ChapterSubtitleAlignment, Mode=TwoWay}" HorizontalAlignment="Left" Width="100"/>
+                                            <ComboBox ItemsSource="{Binding TextAlignments}" SelectedItem="{Binding Theme.ChapterSubtitleAlignment, Mode=TwoWay}" HorizontalAlignment="Left" MinWidth="100"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
@@ -261,9 +263,9 @@
                     </ComboBox>
 
                     <StackPanel Orientation="Horizontal" Spacing="5">
-                        <Button Content="Save Project" Command="{Binding SaveProjectCommand}" Width="120"/>
-                        <Button Content="Save As..." Command="{Binding SaveAsNewProjectCommand}" Width="85"/>
-                        <Button Content="Delete" Command="{Binding DeleteProjectCommand}" Width="85"/>
+                        <Button Content="Save Project" Command="{Binding SaveProjectCommand}" MinWidth="100"/>
+                        <Button Content="Save As..." Command="{Binding SaveAsNewProjectCommand}" MinWidth="80"/>
+                        <Button Content="Delete" Command="{Binding DeleteProjectCommand}" MinWidth="80"/>
                     </StackPanel>
 
                     <TextBlock Margin="0,10,0,0"
@@ -290,7 +292,10 @@
                             <TextBlock Text="Content (Markdown):"/>
                             <TextBlock Text="**bold** *italic* ++underline++ \ skip formatting" FontSize="11" Foreground="Gray" Margin="0,2,0,5"/>
 
-                            <Border BorderBrush="Gray" BorderThickness="1" Height="500" Width="800">
+                            <Border BorderBrush="Gray" BorderThickness="1" Height="500"
+                                    HorizontalAlignment="Stretch"
+                                    MaxWidth="1200"
+                                    Margin="50,0">
                                 <avaloniaEdit:TextEditor x:Name="ContentEditor"
                                                          HorizontalAlignment="Stretch"
                                                          VerticalAlignment="Stretch"
@@ -381,10 +386,10 @@
 
                             <!-- Center: Navigation buttons -->
                             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
-                                <Button Content="&lt;&lt; First" Command="{Binding GoToFirstPageCommand}" Width="80"/>
-                                <Button Content="&lt; Previous" Command="{Binding GoToPreviousPageCommand}" Width="90"/>
-                                <Button Content="Next &gt;" Command="{Binding GoToNextPageCommand}" Width="90"/>
-                                <Button Content="Last &gt;&gt;" Command="{Binding GoToLastPageCommand}" Width="80"/>
+                                <Button Content="&lt;&lt; First" Command="{Binding GoToFirstPageCommand}" MinWidth="70"/>
+                                <Button Content="&lt; Previous" Command="{Binding GoToPreviousPageCommand}" MinWidth="80"/>
+                                <Button Content="Next &gt;" Command="{Binding GoToNextPageCommand}" MinWidth="80"/>
+                                <Button Content="Last &gt;&gt;" Command="{Binding GoToLastPageCommand}" MinWidth="70"/>
                             </StackPanel>
 
                             <!-- Right: Zoom slider -->
@@ -393,11 +398,11 @@
                                 <Slider Value="{Binding ZoomLevel, Mode=TwoWay}"
                                         Minimum="0.35"
                                         Maximum="1.05"
-                                        Width="150"
+                                        MinWidth="120"
                                         VerticalAlignment="Center"
                                         TickFrequency="0.05"
                                         IsSnapToTickEnabled="True"/>
-                                <TextBlock VerticalAlignment="Center" Width="50">
+                                <TextBlock VerticalAlignment="Center" MinWidth="50">
                                     <TextBlock.Text>
                                         <Binding Path="ZoomLevel">
                                             <Binding.Converter>
